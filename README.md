@@ -18,7 +18,7 @@
 
 ```bash
 # 从 GitHub 安装（推荐 pin 一个 release tag，格式与生态一致）
-dsh plugin --profile web add github:tuifeibenfeifei/teartris#v1.0.1
+dsh plugin --profile web add github:tuifeibenfeifei/teartris#v1.0.2
 
 # 硬刷新浏览器（Ctrl/Cmd+Shift+R）后，右下角出现「T」悬浮按钮
 # 点击按钮打开游戏面板，也可以直接访问 http://<dsh-host>:<port>/teartris/

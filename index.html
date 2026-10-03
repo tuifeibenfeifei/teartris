@@ -653,7 +653,7 @@ function drawBackground(dt){
         // 撕开的瞬间在 B 上打一道亮光
         if (p < .5){
           bctx.save();
-          bctx.globalAlpha = (.55 - p) * 2 * .35;
+          bctx.globalAlpha = Math.max(0, (.6 - p) * 2) * .5;
           const gy = r * CELL;
           const g = bctx.createLinearGradient(0, gy, 0, gy + CELL);
           g.addColorStop(0, '#ffffff'); g.addColorStop(1, 'rgba(255,255,255,0)');
@@ -689,7 +689,7 @@ function drawCell(x, y, size, color, alpha){
   const pad = size * .055;
   const r = Math.max(2, size * .14);
   bctx.save();
-  bctx.globalAlpha = Math.max(0, Math.min(1, alpha == null ? .88 : alpha));
+  bctx.globalAlpha = Math.max(0, Math.min(1, alpha == null ? .5 : alpha));
   const g = bctx.createLinearGradient(x, y, x, y + size);
   g.addColorStop(0, shade(color, 18));
   g.addColorStop(1, shade(color, -10));
@@ -750,14 +750,14 @@ function drawPiece(){
   for (const c of cells){
     const gy = piece.y + c.y;
     if (gy < 0) continue;
-    drawCell((piece.x + c.x) * CELL, gy * CELL, CELL, color);
+    drawCell((piece.x + c.x) * CELL, gy * CELL, CELL, color, .8);
   }
 }
 
 function drawStack(){
   for (let r = 0; r < ROWS; r++){
     for (let c = 0; c < COLS; c++){
-      if (grid[r][c]) drawCell(c * CELL, r * CELL, CELL, PIECES[grid[r][c]].color);
+      if (grid[r][c]) drawCell(c * CELL, r * CELL, CELL, PIECES[grid[r][c]].color, .5);
     }
   }
 }
