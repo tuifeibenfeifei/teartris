@@ -517,7 +517,7 @@ function lock(){
     for (const r of full){
       if (!revealed.has(r)){
         revealed.add(r);
-        tearing.push({ row: r, t: 0, dur: 650 + Math.random()*150 });
+        tearing.push({ row: r, t: 0, start: null, dur: 650 + Math.random()*150 });
         spawnPaper(r);
       }
     }
@@ -646,43 +646,43 @@ function drawBackground(dt){
   } else if (images.A && coverA){
     bctx.drawImage(images.A, coverA.sx, coverA.sy, coverA.sw, coverA.sh, 0, 0, BD_W, BD_H);
   }
-  // 上层图 A：未撕开的行带 + 撕开动画中的行带
+  // 上层图 A：只画未撕开的行带（已撕行永远不再画 A，B 完整、彻底露出）
   if (images.A){
     for (let r = 0; r < ROWS; r++){
-      const tr = isTearing(r);
-      if (revealed.has(r) && !tr) continue;
-      let alpha = 1, dy = 0;
-      if (tr){
-        const p = Math.min(1, tr.t);
-        alpha = 1 - p;
-        dy = -p * CELL * .85;             // 向上大幅揭起
-        const tilt = p < .8 ? (p - .4) * .22 : 0;   // 撕起时微微倾转
-        // 撕开的瞬间在 B 上打一道亮光
-        if (p < .55){
-          bctx.save();
-          bctx.globalAlpha = Math.max(0, (.75 - p) * 2.2) * .65;
-          const gy = r * CELL;
-          const g = bctx.createLinearGradient(0, gy, 0, gy + CELL);
-          g.addColorStop(0, '#ffffff'); g.addColorStop(1, 'rgba(255,255,255,0)');
-          bctx.fillStyle = g;
-          bctx.fillRect(0, gy, BD_W, CELL);
-          bctx.restore();
-        }
-        drawStripA(r, dy, alpha, tilt);
-      } else {
-        drawStripA(r, dy, alpha);
-      }
+      if (revealed.has(r)) continue;
+      drawStripA(r, 0, 1);
     }
   }
-  // 撕开的行带：叠深蓝调 + 撕纸边缘阴影与高光
+  // 撕开动画：A 带残影极快上移淡出 + 短亮光（纯装饰，B 立即完整显示，卡住也不影响）
+  for (const t of tearing){
+    const p = Math.min(1, t.t);
+    const r = t.row;
+    if (p < .28 && images.A){
+      const tilt = p < .8 ? (p - .4) * .22 : 0;
+      bctx.save();
+      bctx.globalAlpha = Math.max(0, 1 - p * 3.5);
+      drawStripA(r, -p * CELL * 1.2, 1, tilt);
+      bctx.restore();
+    }
+    if (p < .4){
+      bctx.save();
+      bctx.globalAlpha = Math.max(0, (.5 - p) * 2) * .5;
+      const gy = r * CELL;
+      const g = bctx.createLinearGradient(0, gy, 0, gy + CELL);
+      g.addColorStop(0, '#ffffff'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      bctx.fillStyle = g;
+      bctx.fillRect(0, gy, BD_W, CELL);
+      bctx.restore();
+    }
+  }
+  // 撕开的行带：叠深蓝调 + 撕纸边缘阴影与高光（动画期间也立即生效，保证彻底撕完）
   for (const r of revealed){
-    if (isTearing(r)) continue;
     const y = r * CELL;
     const offs = edgeOffsets(r);
     const n = offs.length - 1;
     // 深蓝调：让撕开带与上层图形成强反差
     bctx.save();
-    bctx.globalAlpha = .22;
+    bctx.globalAlpha = .24;
     bctx.fillStyle = '#0a1646';
     bctx.fillRect(0, y, BD_W, CELL);
     bctx.restore();
@@ -705,8 +705,13 @@ function drawBackground(dt){
 function drawTornEdges(){
   if (!revealed.size) return;
   for (const r of revealed){
-    if (isTearing(r)) continue;
     const y = r * CELL;
+    // 整带深蓝调浮在方块之上：堆叠盖住时也能看出整行撕痕
+    bctx.save();
+    bctx.globalAlpha = .12;
+    bctx.fillStyle = '#0a1646';
+    bctx.fillRect(0, y, BD_W, CELL);
+    bctx.restore();
     const offs = edgeOffsets(r);
     const n = offs.length - 1;
     // 下缘残边（撕开时留下的纸边，浮在方块上）
@@ -823,8 +828,11 @@ function drawParticles(dt){
   particles = particles.filter(p => p.life > 0);
 }
 
-function updateTearing(dt){
-  for (const t of tearing) t.t += dt / t.dur;
+function updateTearing(now){
+  for (const t of tearing){
+    if (t.start == null) t.start = now;
+    t.t = (now - t.start) / t.dur;
+  }
   tearing = tearing.filter(t => t.t < 1);
 }
 
@@ -891,7 +899,7 @@ function frame(now){
       if (!move(0, 1)) lock();
     }
   }
-  updateTearing(dt);
+  updateTearing(now);
   bctx.clearRect(0, 0, BD_W, BD_H);
   drawBackground(dt);
   drawGridAndFrame();
