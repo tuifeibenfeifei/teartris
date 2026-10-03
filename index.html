@@ -517,7 +517,7 @@ function lock(){
     for (const r of full){
       if (!revealed.has(r)){
         revealed.add(r);
-        tearing.push({ row: r, t: 0, dur: 420 + Math.random()*120 });
+        tearing.push({ row: r, t: 0, dur: 650 + Math.random()*150 });
         spawnPaper(r);
       }
     }
@@ -574,17 +574,17 @@ function newGame(){
 function spawnPaper(row){
   const rnd = mulberry32((row + 1) * 7919);
   const y0 = row * CELL, y1 = y0 + CELL;
-  for (let i = 0; i < 10; i++){
+  for (let i = 0; i < 26; i++){
     particles.push({
       x: rnd() * BD_W,
       y: y0 + rnd() * (y1 - y0),
-      vx: (rnd() - .5) * 46,
-      vy: -(40 + rnd() * 90),
-      w: 2.5 + rnd() * 3.5,
-      h: 1.5 + rnd() * 2.5,
+      vx: (rnd() - .5) * 72,
+      vy: -(55 + rnd() * 135),
+      w: 3 + rnd() * 4,
+      h: 2 + rnd() * 3,
       rot: rnd() * Math.PI * 2,
-      vr: (rnd() - .5) * 8,
-      life: 1, dur: .45 + rnd() * .3,
+      vr: (rnd() - .5) * 9,
+      life: 1, dur: .5 + rnd() * .4,
       color: rnd() > .45 ? '#f4efe4' : '#ffffff'
     });
   }
@@ -608,7 +608,7 @@ function isTearing(row){
 }
 
 // ---------- 渲染 ----------
-function drawStripA(row, dy, alpha){
+function drawStripA(row, dy, alpha, tilt){
   const cover = coverA; if (!cover) return;
   const y0 = row * CELL + dy, y1 = y0 + CELL;
   if (y1 < 0 || y0 > BD_H) return;
@@ -616,6 +616,12 @@ function drawStripA(row, dy, alpha){
   const sh = cover.sh / ROWS;
   const bottomJagged = revealed.has(row + 1);
   bctx.save();
+  if (tilt){
+    const cy = y0 + CELL / 2;
+    bctx.translate(BD_W / 2, cy);
+    bctx.rotate(tilt);
+    bctx.translate(-BD_W / 2, -cy);
+  }
   bctx.globalAlpha *= Math.max(0, Math.min(1, alpha));
   if (bottomJagged){
     // 用锯齿路径裁掉条带底部，形成撕纸边缘
@@ -649,11 +655,12 @@ function drawBackground(dt){
       if (tr){
         const p = Math.min(1, tr.t);
         alpha = 1 - p;
-        dy = -p * CELL * .5;              // 向上揭起
+        dy = -p * CELL * .85;             // 向上大幅揭起
+        const tilt = p < .8 ? (p - .4) * .22 : 0;   // 撕起时微微倾转
         // 撕开的瞬间在 B 上打一道亮光
-        if (p < .5){
+        if (p < .55){
           bctx.save();
-          bctx.globalAlpha = Math.max(0, (.6 - p) * 2) * .5;
+          bctx.globalAlpha = Math.max(0, (.75 - p) * 2.2) * .65;
           const gy = r * CELL;
           const g = bctx.createLinearGradient(0, gy, 0, gy + CELL);
           g.addColorStop(0, '#ffffff'); g.addColorStop(1, 'rgba(255,255,255,0)');
@@ -661,25 +668,64 @@ function drawBackground(dt){
           bctx.fillRect(0, gy, BD_W, CELL);
           bctx.restore();
         }
+        drawStripA(r, dy, alpha, tilt);
+      } else {
+        drawStripA(r, dy, alpha);
       }
-      drawStripA(r, dy, alpha);
     }
   }
-  // 撕纸边缘阴影与高光
+  // 撕开的行带：叠深蓝调 + 撕纸边缘阴影与高光
   for (const r of revealed){
     if (isTearing(r)) continue;
-    const offs = edgeOffsets(r);
     const y = r * CELL;
+    const offs = edgeOffsets(r);
     const n = offs.length - 1;
+    // 深蓝调：让撕开带与上层图形成强反差
+    bctx.save();
+    bctx.globalAlpha = .22;
+    bctx.fillStyle = '#0a1646';
+    bctx.fillRect(0, y, BD_W, CELL);
+    bctx.restore();
+    // 上缘撕边
     bctx.save();
     bctx.beginPath();
     bctx.moveTo(0, y);
     for (let i = 0; i <= n; i++) bctx.lineTo((i/n) * BD_W, y + offs[i]);
-    bctx.strokeStyle = 'rgba(0,0,0,.22)';
-    bctx.lineWidth = 2;
+    bctx.strokeStyle = 'rgba(0,0,0,.35)';
+    bctx.lineWidth = 2.5;
     bctx.stroke();
-    bctx.strokeStyle = 'rgba(255,255,255,.28)';
-    bctx.lineWidth = 1;
+    bctx.strokeStyle = 'rgba(255,255,255,.4)';
+    bctx.lineWidth = 1.2;
+    bctx.stroke();
+    bctx.restore();
+  }
+}
+
+// 撕开的翘边：画在方块之上，任何时刻都能看出哪几行被撕开过
+function drawTornEdges(){
+  if (!revealed.size) return;
+  for (const r of revealed){
+    if (isTearing(r)) continue;
+    const y = r * CELL;
+    const offs = edgeOffsets(r);
+    const n = offs.length - 1;
+    // 下缘残边（撕开时留下的纸边，浮在方块上）
+    bctx.save();
+    bctx.beginPath();
+    bctx.moveTo(0, y + CELL);
+    for (let i = 0; i <= n; i++) bctx.lineTo((i/n) * BD_W, y + CELL + offs[i]);
+    bctx.strokeStyle = 'rgba(0,0,0,.5)';
+    bctx.lineWidth = 3.2;
+    bctx.stroke();
+    bctx.strokeStyle = 'rgba(255,255,255,.6)';
+    bctx.lineWidth = 1.6;
+    bctx.stroke();
+    // 上缘高光
+    bctx.beginPath();
+    bctx.moveTo(0, y);
+    for (let i = 0; i <= n; i++) bctx.lineTo((i/n) * BD_W, y + offs[i]);
+    bctx.strokeStyle = 'rgba(255,255,255,.38)';
+    bctx.lineWidth = 1.3;
     bctx.stroke();
     bctx.restore();
   }
@@ -757,7 +803,7 @@ function drawPiece(){
 function drawStack(){
   for (let r = 0; r < ROWS; r++){
     for (let c = 0; c < COLS; c++){
-      if (grid[r][c]) drawCell(c * CELL, r * CELL, CELL, PIECES[grid[r][c]].color, .5);
+      if (grid[r][c]) drawCell(c * CELL, r * CELL, CELL, PIECES[grid[r][c]].color, .42);
     }
   }
 }
@@ -852,6 +898,7 @@ function frame(now){
   drawStack();
   drawGhost();
   drawPiece();
+  drawTornEdges();
   drawParticles(dt);
   drawPreviews();
   refreshHUD(false);
@@ -897,7 +944,7 @@ const SFX = {
   hold:   () => tone(260, .06, 'triangle', .08),
   clear:  () => { tone(523,.09,'triangle',.1); tone(659,.09,'triangle',.1,.07); tone(784,.12,'triangle',.1,.14); },
   tetris: () => { tone(523,.09,'triangle',.1); tone(659,.09,'triangle',.1,.07); tone(784,.09,'triangle',.1,.14); tone(1047,.16,'triangle',.12,.21); },
-  tear:   () => noiseBurst(.28, .16),
+  tear:   () => { noiseBurst(.34, .2); noiseBurst(.13, .13, .06); },
   start:  () => { tone(392,.08,'triangle',.09); tone(523,.1,'triangle',.09,.08); },
   over:   () => { tone(330,.2,'sawtooth',.08); tone(262,.3,'sawtooth',.08,.18); tone(196,.5,'sawtooth',.08,.38); }
 };
