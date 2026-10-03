@@ -1,0 +1,16 @@
+{
+  "id": "teartris",
+  "version": "1.0.0",
+  "main": "./lib/index.js",
+  "description": "撕纸俄罗斯方块：每消一行撕开上层图一层，露出下层图，两图拼成新画面。",
+  "engines": {
+    "dsh": ">=0.0.1"
+  },
+  "contributes": {
+    "tools": [],
+    "skills": []
+  },
+  "client": {
+    "main": "./lib/client.js"
+  }
+}

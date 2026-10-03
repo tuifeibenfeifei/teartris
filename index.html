@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>TearTris · 撕纸俄罗斯方块</title>
+<style>
+  :root{
+    --bg:#0a0e17;
+    --panel:rgba(255,255,255,.045);
+    --panel-border:rgba(255,255,255,.09);
+    --text:#dfe6f5;
+    --muted:#8b95ad;
+    --accent:#7c9cff;
+    --accent2:#58d8c0;
+    --danger:#ff6b6b;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(1200px 700px at 50% -10%, rgba(124,156,255,.14), transparent 60%),
+      radial-gradient(900px 600px at 90% 110%, rgba(88,216,192,.10), transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font:14px/1.5 "PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+    display:flex;flex-direction:column;align-items:center;
+    min-height:100vh;padding:14px 12px 18px;
+    overflow-x:hidden;
+  }
+  header{text-align:center;margin-bottom:12px}
+  header h1{
+    font-size:26px;font-weight:800;letter-spacing:2px;
+    background:linear-gradient(90deg,#8fb0ff,#58d8c0);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  header .sub{color:var(--muted);font-size:12.5px;margin-top:2px;letter-spacing:1px}
+  main{
+    display:flex;gap:16px;align-items:flex-start;justify-content:center;
+    width:100%;max-width:920px;
+  }
+  .panel{
+    width:196px;display:flex;flex-direction:column;gap:12px;
+  }
+  .box{
+    background:var(--panel);border:1px solid var(--panel-border);border-radius:14px;
+    padding:12px;backdrop-filter:blur(8px);
+  }
+  .box h3{
+    font-size:11px;font-weight:700;color:var(--muted);letter-spacing:2px;
+    margin-bottom:8px;display:flex;align-items:center;gap:6px;
+  }
+  .box h3 .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);display:inline-block}
+  .mini-canvas{width:100%;height:auto;background:rgba(0,0,0,.18);border-radius:8px;display:block}
+  .next-row{margin-top:8px}
+  .stats .row{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dashed rgba(255,255,255,.06)}
+  .stats .row:last-child{border-bottom:none}
+  .stats .k{color:var(--muted)}
+  .stats .v{font-weight:700;font-variant-numeric:tabular-nums}
+  .stats .v.hl{color:var(--accent2)}
+  .progress{height:8px;border-radius:5px;background:rgba(255,255,255,.08);margin-top:6px;overflow:hidden}
+  .progress i{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,#8fb0ff,#58d8c0);width:0%;transition:width .4s}
+  .btn{
+    display:block;width:100%;text-align:center;padding:8px 6px;border-radius:10px;
+    background:rgba(124,156,255,.12);border:1px solid rgba(124,156,255,.35);
+    color:var(--text);font-size:13px;cursor:pointer;user-select:none;
+    transition:background .15s,transform .05s;margin-bottom:8px;
+  }
+  .btn:hover{background:rgba(124,156,255,.22)}
+  .btn:active{transform:scale(.97)}
+  .btn.green{border-color:rgba(88,216,192,.4);background:rgba(88,216,192,.12)}
+  .btn.green:hover{background:rgba(88,216,192,.22)}
+  .btn.danger{border-color:rgba(255,107,107,.4);background:rgba(255,107,107,.10)}
+  .btn.small{font-size:11.5px;padding:6px 4px}
+  .hint{font-size:11px;color:var(--muted);line-height:1.7}
+  .hint b{color:#aeb9d4;font-weight:600}
+  #stage{position:relative;flex-shrink:0}
+  #board{
+    display:block;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.5);
+    border:1px solid rgba(255,255,255,.12);
+    width:min(46vh,340px);
+  }
+  #dropHint{
+    position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+    background:rgba(10,14,23,.55);border-radius:16px;pointer-events:none;
+    color:#fff;font-size:15px;letter-spacing:1px;text-align:center;line-height:2;
+    border:2px dashed rgba(124,156,255,.7);
+  }
+  #dropHint .half{color:#8fb0ff}
+  #overlay{
+    position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;
+    background:rgba(10,14,23,.68);border-radius:16px;text-align:center;gap:8px;
+  }
+  #overlay.show{display:flex}
+  #overlay h2{font-size:26px;letter-spacing:4px;margin-bottom:4px}
+  #overlay .final{color:var(--muted);font-size:13px}
+  #overlay .final b{color:var(--accent2);font-size:20px}
+  #legend{
+    margin-top:10px;text-align:center;color:var(--muted);font-size:12px;
+    background:var(--panel);border:1px solid var(--panel-border);border-radius:10px;padding:7px 10px;
+  }
+  #legend .hl{color:var(--accent2);font-weight:700}
+  footer{margin-top:12px;color:var(--muted);font-size:11.5px;text-align:center;line-height:1.9}
+  footer b{color:#aeb9d4}
+  .touchbar{display:none;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:10px;width:100%;max-width:340px}
+  .touchbar button{
+    background:rgba(124,156,255,.14);border:1px solid rgba(124,156,255,.35);color:var(--text);
+    border-radius:12px;padding:12px 0;font-size:17px;cursor:pointer;
+  }
+  .touchbar button:active{transform:scale(.94)}
+  @media (max-width:760px){
+    main{flex-direction:column;align-items:center}
+    .panel{width:min(46vh,340px);flex-direction:row;flex-wrap:wrap;justify-content:center}
+    .panel .box{width:calc(50% - 6px)}
+    .touchbar{display:grid}
+    #board{width:min(60vh,92vw)}
+  }
+  .toast{
+    position:fixed;left:50%;bottom:24px;transform:translateX(-50%);
+    background:rgba(20,26,40,.95);border:1px solid rgba(124,156,255,.4);color:var(--text);
+    padding:9px 18px;border-radius:12px;font-size:13px;z-index:999;
+    opacity:0;transition:opacity .25s;pointer-events:none;box-shadow:0 10px 30px rgba(0,0,0,.4);
+  }
+  .toast.show{opacity:1}
+</style>
+</head>
+<body tabindex="0">
+
+<header>
+  <h1>TEARTRIS · 撕纸俄罗斯方块</h1>
+  <div class="sub">每消一行 = 撕开上层图一层 · 下层图露出来拼成新画面</div>
+</header>
+
+<main>
+  <aside class="panel left">
+    <div class="box">
+      <h3><span class="dot"></span>HOLD 暂存</h3>
+      <canvas class="mini-canvas" id="holdCv" width="112" height="112"></canvas>
+    </div>
+    <div class="box">
+      <h3><span class="dot"></span>NEXT 下一个</h3>
+      <canvas class="mini-canvas" id="next1Cv" width="112" height="112"></canvas>
+      <canvas class="mini-canvas next-row" id="next2Cv" width="112" height="112"></canvas>
+      <canvas class="mini-canvas next-row" id="next3Cv" width="112" height="112"></canvas>
+    </div>
+  </aside>
+
+  <section id="stage">
+    <canvas id="board" width="340" height="680"></canvas>
+    <div id="dropHint">松开鼠标放入图片<br><span class="half">左半边 → 上层图 A</span><br><span class="half">右半边 → 下层图 B</span></div>
+    <div id="overlay">
+      <h2 id="ovTitle">游戏结束</h2>
+      <div class="final">得分 <b id="ovScore">0</b></div>
+      <button class="btn green" style="width:140px;margin-top:10px" id="ovBtn">重新开始</button>
+    </div>
+    <div id="legend">玩法：<span class="hl">消除一行 = 撕开一层</span>，上层图该位置消失，露出下层图，两图拼在一起</div>
+    <div class="touchbar">
+      <button data-act="left">◀</button>
+      <button data-act="right">▶</button>
+      <button data-act="rotl">⟲</button>
+      <button data-act="rotr">⟳</button>
+      <button data-act="drop">⤓</button>
+    </div>
+  </section>
+
+  <aside class="panel right">
+    <div class="box stats">
+      <div class="row"><span class="k">分数</span><span class="v hl" id="statScore">0</span></div>
+      <div class="row"><span class="k">等级</span><span class="v" id="statLevel">1</span></div>
+      <div class="row"><span class="k">行数</span><span class="v" id="statLines">0</span></div>
+      <div class="row"><span class="k">连击</span><span class="v" id="statCombo">-</span></div>
+      <div class="row"><span class="k">最高分</span><span class="v" id="statBest">0</span></div>
+      <div class="row"><span class="k">撕纸进度</span><span class="v" id="statRevealed">0 / 20</span></div>
+      <div class="progress"><i id="revealBar"></i></div>
+    </div>
+    <div class="box">
+      <h3><span class="dot"></span>图片图层</h3>
+      <button class="btn small" id="pickA">选择 上层图 A</button>
+      <button class="btn small" id="pickB">选择 下层图 B</button>
+      <button class="btn small" id="resetImgs">重置为示例图</button>
+      <div class="hint">也支持把图片直接拖到棋盘上：<br>左半边 → 上层 A，右半边 → 下层 B</div>
+      <input type="file" id="fileA" accept="image/*" hidden>
+      <input type="file" id="fileB" accept="image/*" hidden>
+    </div>
+    <div class="box">
+      <button class="btn green" id="btnNew">新游戏</button>
+      <button class="btn" id="btnPause">暂停</button>
+      <button class="btn" id="btnSound">音效：开</button>
+    </div>
+  </aside>
+</main>
+
+<footer>
+  <b>←→</b> 移动 &nbsp; <b>↑ / X</b> 旋转 &nbsp; <b>Z</b> 反向旋转 &nbsp; <b>↓</b> 软降 &nbsp; <b>空格</b> 硬降 &nbsp; <b>C</b> 暂存 &nbsp; <b>P</b> 暂停 &nbsp; <b>R</b> 重开
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+/* ============================================================
+ * TearTris · 撕纸俄罗斯方块
+ * 双层图片背景：消除一行 = 撕开上层图该行，露出下层图，拼接成新画面
+ * ============================================================ */
+
+// ---------- 常量 ----------
+const COLS = 10, ROWS = 20;
+const CELL = 34;                       // 棋盘逻辑像素
+const BD_W = COLS * CELL, BD_H = ROWS * CELL;
+const MINI = 26, MINI_PAD = 2;
+
+const PIECES = {
+  I: { color: '#39d3ff', shape: [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]] },
+  O: { color: '#ffd166', shape: [[1,1],[1,1]] },
+  T: { color: '#c792ea', shape: [[0,1,0],[1,1,1],[0,0,0]] },
+  S: { color: '#7ae582', shape: [[0,1,1],[1,1,0],[0,0,0]] },
+  Z: { color: '#ff6b6b', shape: [[1,1,0],[0,1,1],[0,0,0]] },
+  J: { color: '#6ea8fe', shape: [[1,0,0],[1,1,1],[0,0,0]] },
+  L: { color: '#ffa94d', shape: [[0,0,1],[1,1,1],[0,0,0]] }
+};
+const TYPES = Object.keys(PIECES);
+
+// SRS 踢墙表
+const KICKS_JLSTZ = {
+  '0>1': [[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]], '1>0': [[0,0],[1,0],[1,-1],[0,2],[1,2]],
+  '1>2': [[0,0],[1,0],[1,-1],[0,2],[1,2]],     '2>1': [[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],
+  '2>3': [[0,0],[1,0],[1,1],[0,-2],[1,-2]],    '3>2': [[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],
+  '3>0': [[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],  '0>3': [[0,0],[1,0],[1,1],[0,-2],[1,-2]]
+};
+const KICKS_I = {
+  '0>1': [[0,0],[-2,0],[1,0],[-2,-1],[1,2]],   '1>0': [[0,0],[2,0],[-1,0],[2,1],[-1,-2]],
+  '1>2': [[0,0],[-1,0],[2,0],[-1,2],[2,-1]],   '2>1': [[0,0],[1,0],[-2,0],[1,-2],[-2,1]],
+  '2>3': [[0,0],[2,0],[-1,0],[2,1],[-1,-2]],   '3>2': [[0,0],[-2,0],[1,0],[-2,-1],[1,2]],
+  '3>0': [[0,0],[1,0],[-2,0],[1,-2],[-2,1]],   '0>3': [[0,0],[-1,0],[2,0],[-1,2],[2,-1]]
+};
+const LINE_SCORES = [0, 100, 300, 500, 800];
+
+// ---------- 工具函数 ----------
+const $ = id => document.getElementById(id);
+function mulberry32(seed){
+  return function(){
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function hexToRgb(hex){
+  const n = parseInt(hex.slice(1), 16);
+  return [(n>>16)&255, (n>>8)&255, n&255];
+}
+function shade(hex, amt){ // amt: -100..100
+  const [r,g,b] = hexToRgb(hex);
+  const f = c => Math.max(0, Math.min(255, Math.round(c + (amt>0? (255-c)*amt/100 : c*amt/100))));
+  return `rgb(${f(r)},${f(g)},${f(b)})`;
+}
+function roundRect(ctx,x,y,w,h,r){
+  r = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+function toast(msg){
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+// ---------- 图片加载 ----------
+const images = { A: null, B: null, usingCustom: { A:false, B:false } };
+let coverA = null, coverB = null;
+
+// 计算 cover-fit 源区域
+function coverRect(img, dw, dh){
+  const ir = img.width / img.height, dr = dw / dh;
+  let sx, sy, sw, sh;
+  if (ir > dr){ sh = img.height; sw = sh * dr; sx = (img.width - sw)/2; sy = 0; }
+  else { sw = img.width; sh = sw / dr; sx = 0; sy = (img.height - sh)/2; }
+  return { sx, sy, sw, sh };
+}
+
+function loadImageInto(slot, src, persistBlob){
+  const img = new Image();
+  img.onload = () => {
+    images[slot] = img;
+    if (slot === 'A') coverA = coverRect(img, BD_W, BD_H);
+    else coverB = coverRect(img, BD_W, BD_H);
+    if (persistBlob){ images.usingCustom[slot] = true; idbPut(slot, persistBlob); }
+    else images.usingCustom[slot] = false;
+    updateImgLabels();
+  };
+  img.onerror = () => {
+    if (persistBlob) toast('图片读取失败，请换一张试试');
+    else useProcedural(slot);
+  };
+  img.src = src;
+}
+
+// 程序生成的兜底背景（默认图加载失败时）
+function useProcedural(slot){
+  const c = document.createElement('canvas');
+  c.width = 300; c.height = 600;
+  const x = c.getContext('2d');
+  if (slot === 'A'){
+    const g = x.createLinearGradient(0,0,0,600);
+    g.addColorStop(0,'#9cc7ff'); g.addColorStop(.55,'#dff3ff'); g.addColorStop(1,'#a8d8a0');
+    x.fillStyle = g; x.fillRect(0,0,300,600);
+    x.fillStyle = '#fff8'; x.beginPath(); x.arc(230,90,34,0,7); x.fill();
+    x.fillStyle = '#fff'; for (let i=0;i<5;i++){ x.beginPath(); x.arc(40+i*58, 120+(i%3)*26, 20,0,7); x.arc(60+i*58, 116+(i%3)*26, 24,0,7); x.arc(80+i*58,120+(i%3)*26,18,0,7); x.fill(); }
+    x.fillStyle = '#7cc46f'; x.beginPath(); x.moveTo(0,430); x.lineTo(150,340); x.lineTo(300,430); x.lineTo(300,600); x.lineTo(0,600); x.fill();
+    x.fillStyle = '#d98fd9'; x.beginPath(); x.ellipse(120,520,14,10,0,0,7); x.fill();
+    x.fillStyle = '#ffd166'; x.beginPath(); x.ellipse(190,500,12,9,0,0,7); x.fill();
+  } else {
+    const g = x.createLinearGradient(0,0,0,600);
+    g.addColorStop(0,'#0b1030'); g.addColorStop(.6,'#14224f'); g.addColorStop(1,'#0a0e1f');
+    x.fillStyle = g; x.fillRect(0,0,300,600);
+    for (let i=0;i<60;i++){ const r=Math.random()*1.6+.4; x.fillStyle=`rgba(255,255,255,${Math.random()*.8+.2})`; x.beginPath(); x.arc(Math.random()*300, Math.random()*420, r,0,7); x.fill(); }
+    const ag = x.createLinearGradient(0,180,0,320);
+    ag.addColorStop(0,'rgba(88,216,192,.35)'); ag.addColorStop(1,'rgba(124,156,255,.15)');
+    x.fillStyle = ag; x.beginPath(); x.moveTo(0,220); x.quadraticCurveTo(75,160,150,210); x.quadraticCurveTo(225,260,300,200); x.lineTo(300,260); x.quadraticCurveTo(150,310,0,250); x.fill();
+    x.fillStyle = '#1b2440'; x.beginPath(); x.moveTo(0,470); x.lineTo(90,420); x.lineTo(160,455); x.lineTo(240,405); x.lineTo(300,440); x.lineTo(300,600); x.lineTo(0,600); x.fill();
+  }
+  images[slot] = c;
+  if (slot === 'A') coverA = coverRect(c, BD_W, BD_H);
+  else coverB = coverRect(c, BD_W, BD_H);
+  images.usingCustom[slot] = false;
+  updateImgLabels();
+}
+
+// IndexedDB 持久化自定义图片
+const DB_NAME = 'teartris-db', DB_STORE = 'images';
+let _db = null;
+function idbOpen(){
+  return new Promise((resolve) => {
+    if (_db) return resolve(_db);
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(DB_STORE);
+    req.onsuccess = () => { _db = req.result; resolve(_db); };
+    req.onerror = () => resolve(null);
+  });
+}
+async function idbPut(key, blob){
+  const db = await idbOpen(); if (!db) return;
+  try { await new Promise((res, rej) => { const t = db.transaction(DB_STORE,'readwrite'); t.objectStore(DB_STORE).put(blob, key); t.oncomplete = res; t.onerror = () => rej(t.error); }); } catch(e){}
+}
+async function idbGet(key){
+  const db = await idbOpen(); if (!db) return null;
+  try { return await new Promise((res, rej) => { const t = db.transaction(DB_STORE,'readonly'); const rq = t.objectStore(DB_STORE).get(key); rq.onsuccess = () => res(rq.result || null); rq.onerror = () => rej(rq.error); }); } catch(e){ return null; }
+}
+async function idbDel(key){
+  const db = await idbOpen(); if (!db) return;
+  try { await new Promise((res, rej) => { const t = db.transaction(DB_STORE,'readwrite'); t.objectStore(DB_STORE).delete(key); t.oncomplete = res; t.onerror = () => rej(t.error); }); } catch(e){}
+}
+
+async function loadDefaults(){
+  const [blobA, blobB] = await Promise.all([idbGet('A'), idbGet('B')]);
+  if (blobA) loadImageInto('A', URL.createObjectURL(blobA), true);
+  else loadImageInto('A', 'assets/imageA.jpg', false);
+  if (blobB) loadImageInto('B', URL.createObjectURL(blobB), true);
+  else loadImageInto('B', 'assets/imageB.jpg', false);
+}
+function updateImgLabels(){
+  const a = images.usingCustom.A ? '（自定义）' : '';
+  const b = images.usingCustom.B ? '（自定义）' : '';
+  $('pickA').textContent = '选择 上层图 A' + a;
+  $('pickB').textContent = '选择 下层图 B' + b;
+}
+
+// ---------- 游戏状态 ----------
+let grid = [], piece = null, hold = null, holdUsed = false;
+let queue = [], bag = [];
+let score = 0, lines = 0, level = 1, combo = -1;
+let over = false, paused = false, started = false;
+let dropCounter = 0, dropInterval = 0, lastTime = 0;
+let revealed = new Set();        // 已被撕开的行带（显示下层图）
+let tearing = [];                // 撕开动画 {row, t}
+let particles = [];
+let best = parseInt(localStorage.getItem('teartris:best') || '0', 10) || 0;
+
+// ---------- 画布 ----------
+const boardCv = $('board'), bctx = boardCv.getContext('2d');
+const holdCv = $('holdCv'), hctx = holdCv.getContext('2d');
+const nextCvs = [ $('next1Cv'), $('next2Cv'), $('next3Cv') ];
+const nextCtxs = nextCvs.map(c => c.getContext('2d'));
+const DPR = Math.min(window.devicePixelRatio || 1, 2);
+function setupCanvas(cv){
+  const w = cv.width, h = cv.height;
+  cv.width = w * DPR; cv.height = h * DPR;
+  cv.getContext('2d').setTransform(DPR,0,0,DPR,0,0);
+}
+setupCanvas(boardCv); setupCanvas(holdCv); nextCvs.forEach(setupCanvas);
+
+// ---------- 方块形状 ----------
+function rotateShape(shape, dir){
+  const n = shape.length;
+  const out = Array.from({length:n}, (_,r)=>Array.from({length:n}, (_,c)=> dir===1 ? shape[n-1-c][r] : shape[c][n-1-r]));
+  return out;
+}
+function shapeCells(shape){
+  const cells = [];
+  for (let r=0;r<shape.length;r++) for (let c=0;c<shape.length;c++) if (shape[r][c]) cells.push({x:c, y:r});
+  return cells;
+}
+function pieceCells(p){ return shapeCells(p.shape); }
+
+function collides(px, py, shape){
+  const cells = shapeCells(shape);
+  for (const cl of cells){
+    const gx = px + cl.x, gy = py + cl.y;
+    if (gx < 0 || gx >= COLS || gy >= ROWS) return true;
+    if (gy >= 0 && grid[gy][gx]) return true;
+  }
+  return false;
+}
+
+function refillBag(){
+  bag = [...TYPES];
+  for (let i = bag.length-1; i > 0; i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [bag[i], bag[j]] = [bag[j], bag[i]];
+  }
+}
+function nextType(){
+  if (bag.length === 0) refillBag();
+  return bag.pop();
+}
+function spawn(){
+  const type = queue.length ? queue.shift() : nextType();
+  queue.push(nextType());
+  const def = PIECES[type];
+  const cells = shapeCells(def.shape);
+  let minX = Infinity, maxX = -Infinity, minY = Infinity;
+  for (const c of cells){ minX = Math.min(minX,c.x); maxX = Math.max(maxX,c.x); minY = Math.min(minY,c.y); }
+  piece = {
+    type, rot: 0, shape: def.shape,
+    x: Math.floor((COLS - (maxX - minX + 1)) / 2) - minX,
+    y: -minY
+  };
+  holdUsed = false;
+  if (collides(piece.x, piece.y, piece.shape)){
+    gameOver();
+  }
+  dropCounter = 0;
+}
+
+function move(dx, dy){
+  if (!piece || over || paused) return false;
+  if (!collides(piece.x+dx, piece.y+dy, piece.shape)){
+    piece.x += dx; piece.y += dy;
+    if (dy > 0) addScore(1); // 软降加分
+    return true;
+  }
+  return false;
+}
+function rotate(dir){
+  if (!piece || over || paused) return false;
+  const from = piece.rot, to = (from + dir + 4) % 4;
+  const table = piece.type === 'I' ? KICKS_I : KICKS_JLSTZ;
+  const key = `${from}>${to}`;
+  const newShape = rotateShape(piece.shape, dir);
+  const kicks = table[key] || [[0,0]];
+  for (const [kx, ky] of kicks){
+    if (!collides(piece.x+kx, piece.y-ky, newShape)){
+      piece.shape = newShape; piece.rot = to; piece.x += kx; piece.y -= ky;
+      return true;
+    }
+  }
+  return false;
+}
+function hardDrop(){
+  if (!piece || over || paused) return;
+  let d = 0;
+  while (!collides(piece.x, piece.y+1, piece.shape)){ piece.y++; d++; }
+  addScore(d * 2);
+  lock();
+}
+function holdPiece(){
+  if (!piece || over || paused || holdUsed) return;
+  if (!hold){
+    hold = piece.type;
+    spawn();
+  } else {
+    const t = hold; hold = piece.type; piece.type = t;
+    const def = PIECES[t];
+    const cells = shapeCells(def.shape);
+    let minX=Infinity, maxX=-Infinity, minY=Infinity;
+    for (const c of cells){ minX=Math.min(minX,c.x); maxX=Math.max(maxX,c.x); minY=Math.min(minY,c.y); }
+    piece.shape = def.shape; piece.rot = 0;
+    piece.x = Math.floor((COLS-(maxX-minX+1))/2) - minX;
+    piece.y = -minY;
+    if (collides(piece.x, piece.y, piece.shape)) gameOver();
+  }
+  holdUsed = true;
+  sHold && playSound('hold');
+}
+
+function lock(){
+  if (!piece) return;
+  const cells = pieceCells(piece);
+  let topOut = false;
+  for (const c of cells){
+    const gy = piece.y + c.y;
+    if (gy < 0){ topOut = true; continue; }
+    grid[gy][piece.x + c.x] = piece.type;
+  }
+  // 消除满行
+  const full = [];
+  for (let r = 0; r < ROWS; r++) if (grid[r].every(v => v)) full.push(r);
+  if (full.length){
+    const kept = grid.filter(r => !r.every(v => v));
+    const empty = Array.from({length: full.length}, () => Array(COLS).fill(null));
+    grid = [...empty, ...kept];
+    // 撕纸：被消除的行带永久露出下层图
+    for (const r of full){
+      if (!revealed.has(r)){
+        revealed.add(r);
+        tearing.push({ row: r, t: 0, dur: 420 + Math.random()*120 });
+        spawnPaper(r);
+      }
+    }
+    lines += full.length;
+    combo++;
+    const comboBonus = combo > 0 ? combo * 50 * level : 0;
+    addScore(LINE_SCORES[full.length] * level + comboBonus);
+    level = Math.floor(lines / 10) + 1;
+    dropInterval = dropIntervalFor(level);
+    playSound(full.length === 4 ? 'tetris' : 'clear');
+    playSound('tear');
+  } else {
+    combo = -1;
+    playSound('lock');
+  }
+  if (topOut){ gameOver(); return; }
+  spawn();
+}
+
+function gameOver(){
+  over = true;
+  started = false;
+  playSound('over');
+  if (score > best){ best = score; localStorage.setItem('teartris:best', String(best)); }
+  $('ovScore').textContent = String(score);
+  $('ovTitle').textContent = '游戏结束';
+  $('overlay').classList.add('show');
+}
+function addScore(n){
+  score += n;
+}
+function dropIntervalFor(lv){
+  return Math.max(90, 900 - (lv-1) * 75);
+}
+
+function newGame(){
+  grid = Array.from({length: ROWS}, () => Array(COLS).fill(null));
+  score = 0; lines = 0; level = 1; combo = -1;
+  hold = null; holdUsed = false;
+  over = false; paused = false; started = true;
+  revealed = new Set(); tearing = []; particles = [];
+  bag = []; queue = [];
+  while (queue.length < 3) queue.push(nextType());
+  dropInterval = dropIntervalFor(1);
+  dropCounter = 0; lastTime = performance.now();
+  spawn();
+  $('overlay').classList.remove('show');
+  $('btnPause').textContent = '暂停';
+  updateHUD();
+  playSound('start');
+}
+
+// ---------- 撕纸动画 ----------
+function spawnPaper(row){
+  const rnd = mulberry32((row + 1) * 7919);
+  const y0 = row * CELL, y1 = y0 + CELL;
+  for (let i = 0; i < 10; i++){
+    particles.push({
+      x: rnd() * BD_W,
+      y: y0 + rnd() * (y1 - y0),
+      vx: (rnd() - .5) * 46,
+      vy: -(40 + rnd() * 90),
+      w: 2.5 + rnd() * 3.5,
+      h: 1.5 + rnd() * 2.5,
+      rot: rnd() * Math.PI * 2,
+      vr: (rnd() - .5) * 8,
+      life: 1, dur: .45 + rnd() * .3,
+      color: rnd() > .45 ? '#f4efe4' : '#ffffff'
+    });
+  }
+}
+// 锯齿撕边的边界偏移（按行带缓存，确定性随机）
+const edgeCache = new Map();
+function edgeOffsets(boundary){
+  let arr = edgeCache.get(boundary);
+  if (!arr){
+    const rnd = mulberry32(boundary * 2654435761 + 97);
+    const n = 22;
+    arr = [];
+    for (let i = 0; i <= n; i++) arr.push((rnd() - .5) * 6); // ±3px
+    edgeCache.set(boundary, arr);
+  }
+  return arr;
+}
+function isTearing(row){
+  for (const t of tearing) if (t.row === row) return t;
+  return null;
+}
+
+// ---------- 渲染 ----------
+function drawStripA(row, dy, alpha){
+  const cover = coverA; if (!cover) return;
+  const y0 = row * CELL + dy, y1 = y0 + CELL;
+  if (y1 < 0 || y0 > BD_H) return;
+  const sy = cover.sy + (row / ROWS) * cover.sh;
+  const sh = cover.sh / ROWS;
+  const bottomJagged = revealed.has(row + 1);
+  bctx.save();
+  bctx.globalAlpha *= Math.max(0, Math.min(1, alpha));
+  if (bottomJagged){
+    // 用锯齿路径裁掉条带底部，形成撕纸边缘
+    const offs = edgeOffsets(row + 1);
+    bctx.beginPath();
+    bctx.moveTo(0, y0);
+    bctx.lineTo(BD_W, y0);
+    const n = offs.length - 1;
+    for (let i = n; i >= 0; i--) bctx.lineTo((i / n) * BD_W, y1 + offs[i]);
+    bctx.lineTo(0, y1 + offs[0]);
+    bctx.closePath();
+    bctx.clip();
+  }
+  bctx.drawImage(images.A, cover.sx, sy, cover.sw, sh, 0, y0, BD_W, CELL);
+  bctx.restore();
+}
+
+function drawBackground(dt){
+  // 下层图 B 全量铺底
+  if (images.B && coverB){
+    bctx.drawImage(images.B, coverB.sx, coverB.sy, coverB.sw, coverB.sh, 0, 0, BD_W, BD_H);
+  } else if (images.A && coverA){
+    bctx.drawImage(images.A, coverA.sx, coverA.sy, coverA.sw, coverA.sh, 0, 0, BD_W, BD_H);
+  }
+  // 上层图 A：未撕开的行带 + 撕开动画中的行带
+  if (images.A){
+    for (let r = 0; r < ROWS; r++){
+      const tr = isTearing(r);
+      if (revealed.has(r) && !tr) continue;
+      let alpha = 1, dy = 0;
+      if (tr){
+        const p = Math.min(1, tr.t);
+        alpha = 1 - p;
+        dy = -p * CELL * .5;              // 向上揭起
+        // 撕开的瞬间在 B 上打一道亮光
+        if (p < .5){
+          bctx.save();
+          bctx.globalAlpha = (.55 - p) * 2 * .35;
+          const gy = r * CELL;
+          const g = bctx.createLinearGradient(0, gy, 0, gy + CELL);
+          g.addColorStop(0, '#ffffff'); g.addColorStop(1, 'rgba(255,255,255,0)');
+          bctx.fillStyle = g;
+          bctx.fillRect(0, gy, BD_W, CELL);
+          bctx.restore();
+        }
+      }
+      drawStripA(r, dy, alpha);
+    }
+  }
+  // 撕纸边缘阴影与高光
+  for (const r of revealed){
+    if (isTearing(r)) continue;
+    const offs = edgeOffsets(r);
+    const y = r * CELL;
+    const n = offs.length - 1;
+    bctx.save();
+    bctx.beginPath();
+    bctx.moveTo(0, y);
+    for (let i = 0; i <= n; i++) bctx.lineTo((i/n) * BD_W, y + offs[i]);
+    bctx.strokeStyle = 'rgba(0,0,0,.22)';
+    bctx.lineWidth = 2;
+    bctx.stroke();
+    bctx.strokeStyle = 'rgba(255,255,255,.28)';
+    bctx.lineWidth = 1;
+    bctx.stroke();
+    bctx.restore();
+  }
+}
+
+function drawCell(x, y, size, color, alpha){
+  const pad = size * .055;
+  const r = Math.max(2, size * .14);
+  bctx.save();
+  bctx.globalAlpha = Math.max(0, Math.min(1, alpha == null ? .88 : alpha));
+  const g = bctx.createLinearGradient(x, y, x, y + size);
+  g.addColorStop(0, shade(color, 18));
+  g.addColorStop(1, shade(color, -10));
+  bctx.fillStyle = g;
+  roundRect(bctx, x + pad, y + pad, size - pad*2, size - pad*2, r);
+  bctx.fill();
+  bctx.fillStyle = 'rgba(255,255,255,.38)';
+  roundRect(bctx, x + pad + size*.09, y + pad + size*.06, size - pad*2 - size*.18, Math.max(1.5, size*.08), 2);
+  bctx.fill();
+  bctx.fillStyle = 'rgba(0,0,0,.20)';
+  roundRect(bctx, x + pad + size*.08, y + size - pad - Math.max(2, size*.09), size - pad*2 - size*.16, Math.max(1.5, size*.08), 2);
+  bctx.fill();
+  bctx.strokeStyle = 'rgba(255,255,255,.22)';
+  bctx.lineWidth = 1;
+  roundRect(bctx, x + pad + .5, y + pad + .5, size - pad*2 - 1, size - pad*2 - 1, r);
+  bctx.stroke();
+  bctx.restore();
+}
+
+function drawGridAndFrame(){
+  bctx.save();
+  bctx.strokeStyle = 'rgba(255,255,255,.045)';
+  bctx.lineWidth = 1;
+  for (let c = 1; c < COLS; c++){
+    bctx.beginPath(); bctx.moveTo(c*CELL+.5, 0); bctx.lineTo(c*CELL+.5, BD_H); bctx.stroke();
+  }
+  for (let r = 1; r < ROWS; r++){
+    bctx.beginPath(); bctx.moveTo(0, r*CELL+.5); bctx.lineTo(BD_W, r*CELL+.5); bctx.stroke();
+  }
+  bctx.strokeStyle = 'rgba(255,255,255,.10)';
+  bctx.lineWidth = 1.5;
+  bctx.strokeRect(.75, .75, BD_W-1.5, BD_H-1.5);
+  bctx.restore();
+}
+
+function drawGhost(){
+  if (!piece) return;
+  let gy = piece.y;
+  while (!collides(piece.x, gy+1, piece.shape)) gy++;
+  const cells = pieceCells(piece);
+  const color = PIECES[piece.type].color;
+  bctx.save();
+  bctx.strokeStyle = color;
+  bctx.globalAlpha = .42;
+  bctx.lineWidth = 1.5;
+  for (const c of cells){
+    const x = (piece.x + c.x) * CELL, y = (gy + c.y) * CELL;
+    roundRect(bctx, x + 3, y + 3, CELL - 6, CELL - 6, Math.max(2, CELL*.12));
+    bctx.stroke();
+  }
+  bctx.restore();
+}
+
+function drawPiece(){
+  if (!piece) return;
+  const color = PIECES[piece.type].color;
+  const cells = pieceCells(piece);
+  for (const c of cells){
+    const gy = piece.y + c.y;
+    if (gy < 0) continue;
+    drawCell((piece.x + c.x) * CELL, gy * CELL, CELL, color);
+  }
+}
+
+function drawStack(){
+  for (let r = 0; r < ROWS; r++){
+    for (let c = 0; c < COLS; c++){
+      if (grid[r][c]) drawCell(c * CELL, r * CELL, CELL, PIECES[grid[r][c]].color);
+    }
+  }
+}
+
+function drawParticles(dt){
+  for (const p of particles){
+    p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 160 * dt; p.rot += p.vr * dt; p.life -= dt / p.dur;
+    if (p.life <= 0) continue;
+    bctx.save();
+    bctx.globalAlpha = Math.max(0, Math.min(1, p.life));
+    bctx.translate(p.x, p.y);
+    bctx.rotate(p.rot);
+    bctx.fillStyle = p.color;
+    bctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+    bctx.restore();
+  }
+  particles = particles.filter(p => p.life > 0);
+}
+
+function updateTearing(dt){
+  for (const t of tearing) t.t += dt / t.dur;
+  tearing = tearing.filter(t => t.t < 1);
+}
+
+// ---------- 迷你预览 ----------
+function drawMini(ctx, type, w, h){
+  ctx.clearRect(0, 0, w, h);
+  if (!type) return;
+  const def = PIECES[type];
+  const cells = shapeCells(def.shape);
+  let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
+  for (const c of cells){ minX=Math.min(minX,c.x); maxX=Math.max(maxX,c.x); minY=Math.min(minY,c.y); maxY=Math.max(maxY,c.y); }
+  const bw = maxX-minX+1, bh = maxY-minY+1;
+  const size = Math.min((w - MINI_PAD*2) / Math.max(bw,3), (h - MINI_PAD*2) / Math.max(bh,2), MINI);
+  const ox = (w - bw*size)/2, oy = (h - bh*size)/2;
+  ctx.save();
+  ctx.globalAlpha = .9;
+  for (const c of cells){
+    const x = ox + (c.x - minX)*size, y = oy + (c.y - minY)*size;
+    const g = ctx.createLinearGradient(x, y, x, y+size);
+    g.addColorStop(0, shade(def.color, 18)); g.addColorStop(1, shade(def.color, -10));
+    ctx.fillStyle = g;
+    roundRect(ctx, x+1, y+1, size-2, size-2, Math.max(2, size*.15));
+    ctx.fill();
+  }
+  ctx.restore();
+}
+function drawPreviews(){
+  drawMini(hctx, hold, 112, 112);
+  for (let i = 0; i < 3; i++) drawMini(nextCtxs[i], queue[i], 112, 112);
+}
+
+// ---------- HUD ----------
+let _hud = {};
+function updateHUD(){
+  _hud = {
+    score: $('statScore'), level: $('statLevel'), lines: $('statLines'),
+    combo: $('statCombo'), best: $('statBest'), revealed: $('statRevealed'), bar: $('revealBar')
+  };
+  refreshHUD(true);
+}
+function refreshHUD(force){
+  if (force || _hud.score.textContent !== String(score)) _hud.score.textContent = String(score);
+  if (force || _hud.level.textContent !== String(level)) _hud.level.textContent = String(level);
+  if (force || _hud.lines.textContent !== String(lines)) _hud.lines.textContent = String(lines);
+  const cb = combo > 0 ? `×${combo+1}` : '-';
+  if (force || _hud.combo.textContent !== cb) _hud.combo.textContent = cb;
+  if (force || _hud.best.textContent !== String(best)) _hud.best.textContent = String(best);
+  const rc = `${revealed.size} / ${ROWS}`;
+  if (force || _hud.revealed.textContent !== rc) _hud.revealed.textContent = rc;
+  if (force || Math.round(_hud.bar.style.width.replace('%','')) !== Math.round(revealed.size/ROWS*100))
+    _hud.bar.style.width = `${(revealed.size/ROWS*100).toFixed(1)}%`;
+}
+
+// ---------- 主循环 ----------
+function frame(now){
+  requestAnimationFrame(frame);
+  if (!started && !over && !piece) return;
+  const dt = Math.min(0.05, (now - lastTime) / 1000 || 0.016);
+  lastTime = now;
+  if (!paused && !over && piece){
+    dropCounter += dt * 1000;
+    if (dropCounter >= dropInterval){
+      dropCounter = 0;
+      if (!move(0, 1)) lock();
+    }
+  }
+  updateTearing(dt);
+  bctx.clearRect(0, 0, BD_W, BD_H);
+  drawBackground(dt);
+  drawGridAndFrame();
+  drawStack();
+  drawGhost();
+  drawPiece();
+  drawParticles(dt);
+  drawPreviews();
+  refreshHUD(false);
+}
+
+// ---------- 音效 ----------
+let actx = null, muted = localStorage.getItem('teartris:muted') === '1';
+function ensureAudio(){
+  if (!actx){
+    try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){}
+  }
+  if (actx && actx.state === 'suspended') actx.resume();
+}
+function tone(freq, dur, type, gain, when){
+  if (!actx || muted) return;
+  const t0 = actx.currentTime + (when || 0);
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.type = type || 'square'; o.frequency.value = freq;
+  g.gain.setValueAtTime(gain || .12, t0);
+  g.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
+  o.connect(g); g.connect(actx.destination);
+  o.start(t0); o.stop(t0 + dur + .02);
+}
+function noiseBurst(dur, gain, when){
+  if (!actx || muted) return;
+  const t0 = actx.currentTime + (when || 0);
+  const len = Math.floor(actx.sampleRate * dur);
+  const buf = actx.createBuffer(1, len, actx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) data[i] = (Math.random()*2-1) * (1 - i/len);
+  const src = actx.createBufferSource(); src.buffer = buf;
+  const g = actx.createGain(); g.gain.setValueAtTime(gain || .2, t0);
+  g.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
+  const f = actx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1400; f.Q.value = 1;
+  src.connect(f); f.connect(g); g.connect(actx.destination);
+  src.start(t0);
+}
+const SFX = {
+  move:   () => tone(210, .05, 'square', .06),
+  rotate: () => tone(330, .06, 'triangle', .08),
+  soft:   () => tone(150, .03, 'square', .04),
+  lock:   () => { tone(110, .07, 'square', .1); },
+  hold:   () => tone(260, .06, 'triangle', .08),
+  clear:  () => { tone(523,.09,'triangle',.1); tone(659,.09,'triangle',.1,.07); tone(784,.12,'triangle',.1,.14); },
+  tetris: () => { tone(523,.09,'triangle',.1); tone(659,.09,'triangle',.1,.07); tone(784,.09,'triangle',.1,.14); tone(1047,.16,'triangle',.12,.21); },
+  tear:   () => noiseBurst(.28, .16),
+  start:  () => { tone(392,.08,'triangle',.09); tone(523,.1,'triangle',.09,.08); },
+  over:   () => { tone(330,.2,'sawtooth',.08); tone(262,.3,'sawtooth',.08,.18); tone(196,.5,'sawtooth',.08,.38); }
+};
+function playSound(name){ (SFX[name] || (()=>{}))(); }
+function updateSoundBtn(){ $('btnSound').textContent = '音效：' + (muted ? '关' : '开'); }
+
+// ---------- 输入 ----------
+document.addEventListener('keydown', (e) => {
+  if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+  ensureAudio();
+  const k = e.code;
+  const kt = ['ArrowLeft','ArrowRight','ArrowDown','ArrowUp','Space'];
+  if (kt.includes(k)) e.preventDefault();
+  if (!started && !over && !piece) return;
+  if (over){ if (k === 'KeyR' || k === 'Space' || k === 'Enter') newGame(); return; }
+  switch (k){
+    case 'ArrowLeft':  if (move(-1,0)) playSound('move'); break;
+    case 'ArrowRight': if (move(1,0)) playSound('move'); break;
+    case 'ArrowDown':  if (move(0,1)) playSound('soft'); break;
+    case 'ArrowUp':    if (rotate(1)) playSound('rotate'); break;
+    case 'KeyX':       if (rotate(1)) playSound('rotate'); break;
+    case 'KeyZ':       if (rotate(-1)) playSound('rotate'); break;
+    case 'Space':      hardDrop(); break;
+    case 'KeyC':       holdPiece(); break;
+    case 'KeyP':       togglePause(); break;
+    case 'KeyR':       newGame(); break;
+    case 'KeyM':       muted = !muted; localStorage.setItem('teartris:muted', muted?'1':'0'); updateSoundBtn(); break;
+  }
+});
+function togglePause(){
+  if (over || !piece) return;
+  paused = !paused;
+  $('btnPause').textContent = paused ? '继续' : '暂停';
+}
+
+// 触屏按钮
+document.querySelectorAll('.touchbar button').forEach(btn => {
+  btn.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); ensureAudio();
+    const a = btn.dataset.act;
+    if (a==='left') { if(move(-1,0)) playSound('move'); }
+    else if (a==='right') { if(move(1,0)) playSound('move'); }
+    else if (a==='rotl') { if(rotate(-1)) playSound('rotate'); }
+    else if (a==='rotr') { if(rotate(1)) playSound('rotate'); }
+    else if (a==='drop') hardDrop();
+  });
+});
+
+// 按钮
+$('btnNew').addEventListener('click', () => { ensureAudio(); newGame(); });
+$('btnPause').addEventListener('click', () => { ensureAudio(); togglePause(); });
+$('btnSound').addEventListener('click', () => { ensureAudio(); muted = !muted; localStorage.setItem('teartris:muted', muted?'1':'0'); updateSoundBtn(); });
+$('ovBtn').addEventListener('click', () => newGame());
+$('pickA').addEventListener('click', () => $('fileA').click());
+$('pickB').addEventListener('click', () => $('fileB').click());
+$('fileA').addEventListener('change', e => { const f = e.target.files[0]; if (f) handleImageFile(f, 'A'); e.target.value=''; });
+$('fileB').addEventListener('change', e => { const f = e.target.files[0]; if (f) handleImageFile(f, 'B'); e.target.value=''; });
+$('resetImgs').addEventListener('click', async () => {
+  await Promise.all([idbDel('A'), idbDel('B')]);
+  loadImageInto('A', 'assets/imageA.jpg', false);
+  loadImageInto('B', 'assets/imageB.jpg', false);
+  toast('已重置为示例图');
+});
+
+function handleImageFile(file, slot){
+  if (!file || !/^image\//.test(file.type)){ toast('请选择图片文件'); return; }
+  ensureAudio();
+  loadImageInto(slot, URL.createObjectURL(file), file);
+  toast(`已载入${slot==='A'?'上层':'下层'}图片：${file.name}`);
+}
+
+// 拖拽放入棋盘
+const stageEl = $('stage');
+let dragDepth = 0;
+stageEl.addEventListener('dragenter', e => { e.preventDefault(); dragDepth++; $('dropHint').style.display='flex'; });
+stageEl.addEventListener('dragover', e => { e.preventDefault(); });
+stageEl.addEventListener('dragleave', e => { e.preventDefault(); if (--dragDepth <= 0){ dragDepth=0; $('dropHint').style.display='none'; } });
+stageEl.addEventListener('drop', (e) => {
+  e.preventDefault(); dragDepth = 0; $('dropHint').style.display='none';
+  const files = [...(e.dataTransfer.files || [])].filter(f => /^image\//.test(f.type));
+  if (!files.length){ toast('请拖入图片文件'); return; }
+  if (files.length >= 2){ handleImageFile(files[0], 'A'); handleImageFile(files[1], 'B'); return; }
+  const rect = boardCv.getBoundingClientRect();
+  const leftHalf = e.clientX < rect.left + rect.width/2;
+  handleImageFile(files[0], leftHalf ? 'A' : 'B');
+});
+
+// ---------- 演示模式（?demo 自动演示，用于截图/预览） ----------
+let demoBot = null;
+function startDemo(){
+  // 先直接铺满底部三行并消除，展示撕纸效果
+  for (let r = ROWS-3; r < ROWS; r++) for (let c = 0; c < COLS; c++) grid[r][c] = TYPES[Math.floor(Math.random()*TYPES.length)];
+  const full = [];
+  for (let r = 0; r < ROWS; r++) if (grid[r].every(v => v)) full.push(r);
+  if (full.length){
+    const kept = grid.filter(r => !r.every(v => v));
+    const empty = Array.from({length: full.length}, () => Array(COLS).fill(null));
+    grid = [...empty, ...kept];
+    for (const r of full){ if (!revealed.has(r)){ revealed.add(r); tearing.push({row:r, t:0, dur:380}); spawnPaper(r); } }
+    lines += full.length; level = Math.floor(lines/10)+1;
+  }
+  // 简单机器人持续落子
+  demoBot = setInterval(() => {
+    if (over){ newGame(); return; }
+    if (paused || !piece) return;
+    const wantRot = Math.floor(Math.random()*4);
+    for (let i = 0; i < wantRot; i++) rotate(1);
+    const target = Math.floor(Math.random()*COLS);
+    let guard = 0;
+    while (piece.x < target && guard++ < 12){ if(!move(1,0)) break; }
+    guard = 0;
+    while (piece.x > target && guard++ < 12){ if(!move(-1,0)) break; }
+    hardDrop();
+  }, 480);
+}
+
+// ---------- 启动 ----------
+updateSoundBtn();
+newGame();
+loadDefaults();
+const demo = new URLSearchParams(location.search).get('demo') !== null;
+if (demo) setTimeout(startDemo, 1500);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
