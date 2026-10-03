@@ -985,31 +985,69 @@ stageEl.addEventListener('drop', (e) => {
   handleImageFile(files[0], leftHalf ? 'A' : 'B');
 });
 
-// ---------- 演示模式（?demo 自动演示，用于截图/预览） ----------
+// ---------- 演示模式（?demo 自动演示：贪心 AI 主动消行，持续展示撕纸） ----------
 let demoBot = null;
-function startDemo(){
-  // 先直接铺满底部三行并消除，展示撕纸效果
-  for (let r = ROWS-3; r < ROWS; r++) for (let c = 0; c < COLS; c++) grid[r][c] = TYPES[Math.floor(Math.random()*TYPES.length)];
-  const full = [];
-  for (let r = 0; r < ROWS; r++) if (grid[r].every(v => v)) full.push(r);
-  if (full.length){
-    const kept = grid.filter(r => !r.every(v => v));
-    const empty = Array.from({length: full.length}, () => Array(COLS).fill(null));
-    grid = [...empty, ...kept];
-    for (const r of full){ if (!revealed.has(r)){ revealed.add(r); tearing.push({row:r, t:0, dur:380}); spawnPaper(r); } }
-    lines += full.length; level = Math.floor(lines/10)+1;
+
+// 对当前方块评估最优（旋转, 列）：模拟落点并清行，最小化 最高列/洞/起伏，最大化清行
+function botPick(){
+  if (!piece) return null;
+  let best = null, bestSc = Infinity;
+  for (let rot = 0; rot < 4; rot++){
+    let shape = piece.shape;
+    for (let i = 0; i < rot; i++) shape = rotateShape(shape, 1);
+    const cells = shapeCells(shape);
+    let minX = Infinity, maxX = -Infinity;
+    for (const c of cells){ if (c.x < minX) minX = c.x; if (c.x > maxX) maxX = c.x; }
+    for (let px = -minX; px < COLS - maxX; px++){
+      let py = piece.y;
+      while (!collides(px, py + 1, shape)) py++;
+      if (py < 0) continue;
+      // 复制网格模拟落子 + 清行
+      let g = grid.map(row => row.slice());
+      for (const cl of cells){
+        const gy = py + cl.y;
+        if (gy < 0){ g = null; break; }
+        g[gy][px + cl.x] = piece.type;
+      }
+      if (!g) continue;
+      const kept = g.filter(row => !row.every(v => v));
+      const cleared = ROWS - kept.length;
+      const nn = Array.from({length: cleared}, () => Array(COLS).fill(null));
+      const gg = [...nn, ...kept];
+      // 评分：清行重奖，然后压低最高列 / 洞 / 起伏 / 总高（列高 = 自顶向下的实心高度）
+      const heights = Array(COLS).fill(0);
+      const tops = Array(COLS).fill(-1);
+      for (let c = 0; c < COLS; c++){
+        for (let rr = 0; rr < ROWS; rr++){
+          if (gg[rr][c]){ heights[c]++; if (tops[c] < 0) tops[c] = rr; }
+        }
+      }
+      let maxH = 0, sumH = 0, bump = 0, holes = 0;
+      for (let c = 0; c < COLS; c++){
+        if (heights[c] > maxH) maxH = heights[c];
+        sumH += heights[c];
+        if (c > 0) bump += Math.abs(heights[c] - heights[c-1]);
+        if (tops[c] >= 0) for (let rr = tops[c]; rr < ROWS; rr++) if (!gg[rr][c]) holes++;
+      }
+      const sc = -cleared * 1200 + maxH * 100 + holes * 70 + bump * 8 + sumH * 3;
+      if (sc < bestSc){ bestSc = sc; best = { rot, px }; }
+    }
   }
-  // 简单机器人持续落子
+  return best || { rot: 0, px: Math.floor(COLS / 2) };
+}
+
+function startDemo(){
+  // 不预撕：从纯上层图开始，由 AI 消行逐层撕开，效果最直观
   demoBot = setInterval(() => {
     if (over){ newGame(); return; }
     if (paused || !piece) return;
-    const wantRot = Math.floor(Math.random()*4);
-    for (let i = 0; i < wantRot; i++) rotate(1);
-    const target = Math.floor(Math.random()*COLS);
+    const pick = botPick();
+    if (!pick) return;
+    for (let i = piece.rot; i < pick.rot; i++){ if (!rotate(1)) break; }
     let guard = 0;
-    while (piece.x < target && guard++ < 12){ if(!move(1,0)) break; }
+    while (piece.x < pick.px && guard++ < 12){ if (!move(1, 0)) break; }
     guard = 0;
-    while (piece.x > target && guard++ < 12){ if(!move(-1,0)) break; }
+    while (piece.x > pick.px && guard++ < 12){ if (!move(-1, 0)) break; }
     hardDrop();
   }, 480);
 }

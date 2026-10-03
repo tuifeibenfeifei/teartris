@@ -1,6 +1,6 @@
 {
   "name": "teartris",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "type": "module",
   "description": "撕纸俄罗斯方块 DSH 插件：消除一行 = 撕开上层图一层，露出下层图，两图拼接成新画面。",

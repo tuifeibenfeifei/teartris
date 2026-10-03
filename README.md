@@ -18,7 +18,7 @@
 
 ```bash
 # 从 GitHub 安装（推荐 pin 一个 release tag，格式与生态一致）
-dsh plugin --profile web add github:tuifeibenfeifei/teartris#v1.0.0
+dsh plugin --profile web add github:tuifeibenfeifei/teartris#v1.0.1
 
 # 硬刷新浏览器（Ctrl/Cmd+Shift+R）后，右下角出现「T」悬浮按钮
 # 点击按钮打开游戏面板，也可以直接访问 http://<dsh-host>:<port>/teartris/
@@ -29,6 +29,8 @@ dsh plugin --profile web add github:tuifeibenfeifei/teartris#v1.0.0
 ## 直接玩（无需 DSH）
 
 把本仓库克隆下来（或只下载 `index.html` 和 `assets/`），**双击 `index.html`** 即可在浏览器里游玩，无需任何依赖。
+
+> 想看 AI 自动演示撕纸效果？打开 `index.html?demo` —— 内置贪心 AI 会主动消行，逐层撕开上层图。
 
 ## 自定义图片
 
