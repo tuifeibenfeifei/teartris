@@ -1,0 +1,58 @@
+{
+  "name": "teartris",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "description": "撕纸俄罗斯方块 DSH 插件：消除一行 = 撕开上层图一层，露出下层图，两图拼接成新画面。",
+  "main": "lib/index.js",
+  "icon": "./icon.svg",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  },
+  "meta": {
+    "title": "TearTris 撕纸俄罗斯方块",
+    "description": "右下角悬浮按钮打开游戏面板：每消一行就撕开上层图一层，露出下层图，两图拼成一幅新画。"
+  },
+  "files": [
+    "lib",
+    "locale",
+    "icon.svg",
+    "cordis.patch.yml",
+    "dsh.plugin.json",
+    "index.html",
+    "assets",
+    "tests",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node tests/run.js && node tests/client.js && node tests/routes.js"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1-rc.1"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "cordis-plugin",
+    "tetris",
+    "game"
+  ],
+  "license": "MIT"
+}

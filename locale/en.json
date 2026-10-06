@@ -1,0 +1,4 @@
+{
+  "title": "TearTris — Tear-Away Tetris",
+  "description": "A floating button in the corner opens the game panel: every cleared line tears one layer off the top image and reveals the bottom one, so the two images merge into a new picture as you play."
+}

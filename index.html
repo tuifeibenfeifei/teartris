@@ -1,0 +1,1482 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="TearTris 撕纸俄罗斯方块：每消除一行，撕开上层图一层，露出下层图，两图拼成一幅新画。">
+<title>TearTris · 撕纸俄罗斯方块</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230d1220'/%3E%3Cpath d='M6 8h20v7H6z' fill='%237c9cff'/%3E%3Cpath d='M6 15l4 3 4-3 4 3 4-3 4 3v9H6z' fill='%2358d8c0'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#0a0e17;
+    --panel:rgba(255,255,255,.045);
+    --panel-border:rgba(255,255,255,.09);
+    --text:#dfe6f5;
+    --muted:#8b95ad;
+    --accent:#7c9cff;
+    --accent2:#58d8c0;
+    --danger:#ff6b6b;
+    --board-w:min(340px, 92vw, 46vh);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(1200px 700px at 50% -10%, rgba(124,156,255,.14), transparent 60%),
+      radial-gradient(900px 600px at 90% 110%, rgba(88,216,192,.10), transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font:14px/1.5 "PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+    display:flex;flex-direction:column;align-items:center;
+    min-height:100vh;padding:14px 12px 18px;
+    overflow-x:hidden;
+    overscroll-behavior:none;
+  }
+  header{text-align:center;margin-bottom:12px}
+  header h1{
+    font-size:26px;font-weight:800;letter-spacing:2px;
+    background:linear-gradient(90deg,#8fb0ff,#58d8c0);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  header .sub{color:var(--muted);font-size:12.5px;margin-top:2px;letter-spacing:1px}
+  main{
+    display:flex;gap:16px;align-items:flex-start;justify-content:center;
+    width:100%;max-width:920px;
+  }
+  .panel{width:196px;display:flex;flex-direction:column;gap:12px}
+  .box{
+    background:var(--panel);border:1px solid var(--panel-border);border-radius:14px;
+    padding:12px;backdrop-filter:blur(8px);
+  }
+  .box h3{
+    font-size:11px;font-weight:700;color:var(--muted);letter-spacing:2px;
+    margin-bottom:8px;display:flex;align-items:center;gap:6px;
+  }
+  .box h3 .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);display:inline-block}
+  .mini-canvas{
+    width:100%;height:auto;aspect-ratio:1/1;background:rgba(0,0,0,.18);
+    border-radius:8px;display:block;
+  }
+  .next-row{margin-top:8px}
+  .stats .row{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dashed rgba(255,255,255,.06)}
+  .stats .row:last-of-type{border-bottom:none}
+  .stats .k{color:var(--muted)}
+  .stats .v{font-weight:700;font-variant-numeric:tabular-nums}
+  .stats .v.hl{color:var(--accent2)}
+  .progress{height:8px;border-radius:5px;background:rgba(255,255,255,.08);margin-top:6px;overflow:hidden}
+  .progress i{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,#8fb0ff,#58d8c0);width:0%;transition:width .4s}
+  .btn{
+    display:block;width:100%;text-align:center;padding:8px 6px;border-radius:10px;
+    background:rgba(124,156,255,.12);border:1px solid rgba(124,156,255,.35);
+    color:var(--text);font-size:13px;cursor:pointer;user-select:none;
+    transition:background .15s,transform .05s;margin-bottom:8px;
+    font-family:inherit;
+  }
+  .btn:last-child{margin-bottom:0}
+  .btn:hover{background:rgba(124,156,255,.22)}
+  .btn:active{transform:scale(.97)}
+  .btn.green{border-color:rgba(88,216,192,.4);background:rgba(88,216,192,.12)}
+  .btn.green:hover{background:rgba(88,216,192,.22)}
+  .btn.danger{border-color:rgba(255,107,107,.4);background:rgba(255,107,107,.10)}
+  .btn.small{font-size:11.5px;padding:6px 4px}
+  .hint{font-size:11px;color:var(--muted);line-height:1.7}
+  .hint b{color:#aeb9d4;font-weight:600}
+  #stage{position:relative;flex-shrink:0;width:var(--board-w)}
+  #board{
+    display:block;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.5);
+    border:1px solid rgba(255,255,255,.12);
+    width:100%;height:auto;aspect-ratio:1/2;
+    touch-action:none;
+  }
+  #dropHint{
+    position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+    background:rgba(10,14,23,.62);border-radius:16px;pointer-events:none;
+    color:#fff;font-size:15px;letter-spacing:1px;text-align:center;line-height:2;
+    border:2px dashed rgba(124,156,255,.7);
+  }
+  #stage.dragging #dropHint{display:flex}
+  #dropHint .half{color:#8fb0ff}
+  #overlay{
+    position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;
+    background:rgba(10,14,23,.68);border-radius:16px;text-align:center;gap:8px;
+  }
+  #overlay.show{display:flex}
+  #overlay h2{font-size:26px;letter-spacing:4px;margin-bottom:4px}
+  #overlay .final{color:var(--muted);font-size:13px}
+  #overlay .final b{color:var(--accent2);font-size:20px}
+  #overlay .tip{color:var(--muted);font-size:11.5px;letter-spacing:1px}
+  #legend{
+    margin-top:10px;text-align:center;color:var(--muted);font-size:12px;
+    background:var(--panel);border:1px solid var(--panel-border);border-radius:10px;padding:7px 10px;
+  }
+  #legend .hl{color:var(--accent2);font-weight:700}
+  footer{margin-top:12px;color:var(--muted);font-size:11.5px;text-align:center;line-height:1.9}
+  footer b{color:#aeb9d4}
+  .touchbar{display:none;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:10px;width:100%}
+  .touchbar button{
+    background:rgba(124,156,255,.14);border:1px solid rgba(124,156,255,.35);color:var(--text);
+    border-radius:12px;padding:12px 0;font-size:17px;cursor:pointer;
+    touch-action:none;user-select:none;
+  }
+  .touchbar button:active{transform:scale(.94);background:rgba(124,156,255,.28)}
+  @media (max-width:760px){
+    main{flex-direction:column;align-items:center}
+    .panel{width:var(--board-w);flex-direction:row;flex-wrap:wrap;justify-content:center}
+    .panel .box{width:calc(50% - 6px)}
+    .touchbar{display:grid}
+    body{padding-bottom:24px}
+  }
+  @media (max-width:400px){
+    header h1{font-size:20px}
+    header .sub{font-size:11px}
+  }
+  .toast{
+    position:fixed;left:50%;bottom:24px;transform:translateX(-50%);
+    background:rgba(20,26,40,.95);border:1px solid rgba(124,156,255,.4);color:var(--text);
+    padding:9px 18px;border-radius:12px;font-size:13px;z-index:999;
+    opacity:0;transition:opacity .25s;pointer-events:none;box-shadow:0 10px 30px rgba(0,0,0,.4);
+    max-width:86vw;text-align:center;
+  }
+  .toast.show{opacity:1}
+  @media (prefers-reduced-motion:reduce){
+    *{transition:none !important}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>TEARTRIS · 撕纸俄罗斯方块</h1>
+  <div class="sub">每消一行 = 撕开上层图一层 · 下层图露出来拼成新画面</div>
+</header>
+
+<main>
+  <aside class="panel left">
+    <div class="box">
+      <h3><span class="dot"></span>HOLD 暂存</h3>
+      <canvas class="mini-canvas" id="holdCv" width="112" height="112"></canvas>
+    </div>
+    <div class="box">
+      <h3><span class="dot"></span>NEXT 下一个</h3>
+      <canvas class="mini-canvas" id="next1Cv" width="112" height="112"></canvas>
+      <canvas class="mini-canvas next-row" id="next2Cv" width="112" height="112"></canvas>
+      <canvas class="mini-canvas next-row" id="next3Cv" width="112" height="112"></canvas>
+    </div>
+  </aside>
+
+  <section id="stage">
+    <canvas id="board" width="340" height="680"></canvas>
+    <div id="dropHint">松开鼠标放入图片<br><span class="half">左半边 → 上层图 A</span><br><span class="half">右半边 → 下层图 B</span></div>
+    <div id="overlay">
+      <h2 id="ovTitle">游戏结束</h2>
+      <div class="final">得分 <b id="ovScore">0</b> · 最高 <b id="ovBest">0</b></div>
+      <div class="tip" id="ovTip"></div>
+      <button class="btn green" id="ovBtn" style="width:140px;margin-top:10px">重新开始</button>
+    </div>
+    <div id="legend">玩法：<span class="hl">消除一行 = 撕开一层</span>，上层图该位置消失，露出下层图，两图拼在一起</div>
+    <div class="touchbar">
+      <button data-act="left" aria-label="左移">◀</button>
+      <button data-act="right" aria-label="右移">▶</button>
+      <button data-act="rotl" aria-label="逆时针旋转">⟲</button>
+      <button data-act="rotr" aria-label="顺时针旋转">⟳</button>
+      <button data-act="drop" aria-label="硬降">⤓</button>
+    </div>
+  </section>
+
+  <aside class="panel right">
+    <div class="box stats">
+      <div class="row"><span class="k">分数</span><span class="v hl" id="statScore">0</span></div>
+      <div class="row"><span class="k">等级</span><span class="v" id="statLevel">1</span></div>
+      <div class="row"><span class="k">行数</span><span class="v" id="statLines">0</span></div>
+      <div class="row"><span class="k">连击</span><span class="v" id="statCombo">-</span></div>
+      <div class="row"><span class="k">最高分</span><span class="v" id="statBest">0</span></div>
+      <div class="row"><span class="k">撕纸进度</span><span class="v" id="statRevealed">0 / 20</span></div>
+      <div class="progress"><i id="revealBar"></i></div>
+    </div>
+    <div class="box">
+      <h3><span class="dot"></span>图片图层</h3>
+      <button class="btn small" id="pickA">选择 上层图 A</button>
+      <button class="btn small" id="pickB">选择 下层图 B</button>
+      <button class="btn small" id="resetImgs">重置为示例图</button>
+      <div class="hint">也支持把图片直接拖到棋盘上：<br>左半边 → 上层 A，右半边 → 下层 B<br>大图会自动等比缩到 1280px 内再保存</div>
+      <input type="file" id="fileA" accept="image/*" hidden>
+      <input type="file" id="fileB" accept="image/*" hidden>
+    </div>
+    <div class="box">
+      <button class="btn green" id="btnNew">新游戏</button>
+      <button class="btn" id="btnPause">暂停</button>
+      <button class="btn" id="btnSound">音效：开</button>
+    </div>
+  </aside>
+</main>
+
+<footer>
+  <b>←→</b> 移动 &nbsp; <b>↑ / X</b> 旋转 &nbsp; <b>Z</b> 反向旋转 &nbsp; <b>↓</b> 软降 &nbsp; <b>空格</b> 硬降 &nbsp; <b>C</b> 暂存 &nbsp; <b>P</b> 暂停 &nbsp; <b>R</b> 重开 &nbsp; <b>M</b> 音效
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+'use strict';
+/* ============================================================
+ * TearTris · 撕纸俄罗斯方块
+ * 双层图片背景：消除一行 = 撕开上层图该位置的纸，露出下层图
+ *
+ * 结构：上半部是纯逻辑（不碰 DOM，可被 tests/run.js 直接测试），
+ *       下半部是渲染 / 输入 / 音频 / 启动（仅在浏览器里执行）。
+ * ============================================================ */
+
+// ============================================================
+// 一、常量
+// ============================================================
+const COLS = 10, ROWS = 20;
+const CELL = 34;                       // 棋盘逻辑像素
+const BD_W = COLS * CELL, BD_H = ROWS * CELL;
+const MINI = 26, MINI_PAD = 2;
+const MAX_IMAGE_EDGE = 1280;           // 自定义图片保存前的最大边长
+const EDGE_SEGMENTS = 22;              // 撕纸锯齿的采样段数
+
+const PIECES = {
+  I: { color: '#39d3ff', shape: [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]] },
+  O: { color: '#ffd166', shape: [[1,1],[1,1]] },
+  T: { color: '#c792ea', shape: [[0,1,0],[1,1,1],[0,0,0]] },
+  S: { color: '#7ae582', shape: [[0,1,1],[1,1,0],[0,0,0]] },
+  Z: { color: '#ff6b6b', shape: [[1,1,0],[0,1,1],[0,0,0]] },
+  J: { color: '#6ea8fe', shape: [[1,0,0],[1,1,1],[0,0,0]] },
+  L: { color: '#ffa94d', shape: [[0,0,1],[1,1,1],[0,0,0]] }
+};
+const TYPES = Object.keys(PIECES);
+
+// SRS 踢墙表（x 向右为正，y 向上为正；落子时 y 取反）
+const KICKS_JLSTZ = {
+  '0>1': [[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]], '1>0': [[0,0],[1,0],[1,-1],[0,2],[1,2]],
+  '1>2': [[0,0],[1,0],[1,-1],[0,2],[1,2]],     '2>1': [[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],
+  '2>3': [[0,0],[1,0],[1,1],[0,-2],[1,-2]],    '3>2': [[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],
+  '3>0': [[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],  '0>3': [[0,0],[1,0],[1,1],[0,-2],[1,-2]]
+};
+const KICKS_I = {
+  '0>1': [[0,0],[-2,0],[1,0],[-2,-1],[1,2]],   '1>0': [[0,0],[2,0],[-1,0],[2,1],[-1,-2]],
+  '1>2': [[0,0],[-1,0],[2,0],[-1,2],[2,-1]],   '2>1': [[0,0],[1,0],[-2,0],[1,-2],[-2,1]],
+  '2>3': [[0,0],[2,0],[-1,0],[2,1],[-1,-2]],   '3>2': [[0,0],[-2,0],[1,0],[-2,-1],[1,2]],
+  '3>0': [[0,0],[1,0],[-2,0],[1,-2],[-2,1]],   '0>3': [[0,0],[-1,0],[2,0],[-1,2],[2,-1]]
+};
+const LINE_SCORES = [0, 100, 300, 500, 800];
+
+// ============================================================
+// 二、纯逻辑
+// ============================================================
+function mulberry32(seed){
+  return function(){
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function hexToRgb(hex){
+  const n = parseInt(hex.slice(1), 16);
+  return [(n>>16)&255, (n>>8)&255, n&255];
+}
+function shade(hex, amt){ // amt: -100..100
+  const [r,g,b] = hexToRgb(hex);
+  const f = c => Math.max(0, Math.min(255, Math.round(c + (amt>0? (255-c)*amt/100 : c*amt/100))));
+  return `rgb(${f(r)},${f(g)},${f(b)})`;
+}
+function clamp(v, a, b){ return v < a ? a : v > b ? b : v; }
+
+function rotateShape(shape, dir){
+  const n = shape.length;
+  const out = [];
+  for (let r = 0; r < n; r++){
+    const row = new Array(n);
+    for (let c = 0; c < n; c++) row[c] = dir === 1 ? shape[n-1-c][r] : shape[c][n-1-r];
+    out.push(row);
+  }
+  return out;
+}
+function shapeCells(shape){
+  const cells = [];
+  for (let r = 0; r < shape.length; r++)
+    for (let c = 0; c < shape.length; c++)
+      if (shape[r][c]) cells.push({ x: c, y: r });
+  return cells;
+}
+/** 形状的最小包围盒：用于居中生成 / 计分面板 */
+function shapeBounds(cells){
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const c of cells){
+    if (c.x < minX) minX = c.x;
+    if (c.x > maxX) maxX = c.x;
+    if (c.y < minY) minY = c.y;
+    if (c.y > maxY) maxY = c.y;
+  }
+  return { minX, maxX, minY, maxY, w: maxX - minX + 1, h: maxY - minY + 1 };
+}
+/** 把方块摆到棋盘水平中央、贴着顶部 */
+function centeredPose(type, shape){
+  const b = shapeBounds(shapeCells(shape));
+  return { x: Math.floor((COLS - b.w) / 2) - b.minX, y: -b.minY };
+}
+
+/**
+ * 撕纸核心：消行后把整个栈压下来，被消掉的行位置留下永久撕口。
+ *
+ * 这里的语义是「纸固定、内容下落」：撕口留在下层图原来的位置，上面的
+ * 方块和图案一起往下掉。所以 grid 与 torn（撕口标记）必须同步压缩 ——
+ * 否则撕口会和它对应的图案错位，看起来像没消干净。
+ *
+ * @param grid  ROWS×COLS 的方块类型网格（会被原地修改）
+ * @param torn  ROWS 长的布尔数组，true 表示这一行已经撕开、露出下层图
+ * @param full  被消除的行号（升序）
+ */
+function compact(grid, torn, full){
+  if (!full.length) return 0;
+  const fullSet = new Set(full);
+  const keptRows = [], keptTorn = [];
+  for (let r = 0; r < ROWS; r++){
+    if (fullSet.has(r)) continue;
+    keptRows.push(grid[r]);
+    keptTorn.push(torn[r]);
+  }
+  const revealedCount = full.length;
+  for (let i = 0; i < revealedCount; i++){
+    grid[i] = new Array(COLS).fill(null);
+    torn[i] = true;
+  }
+  for (let i = 0; i < keptRows.length; i++){
+    grid[revealedCount + i] = keptRows[i];
+    torn[revealedCount + i] = keptTorn[i];
+  }
+  return revealedCount;
+}
+function fullRows(grid){
+  const rows = [];
+  for (let r = 0; r < ROWS; r++) if (grid[r].every(Boolean)) rows.push(r);
+  return rows;
+}
+function collides(grid, px, py, shape){
+  for (const cl of shapeCells(shape)){
+    const gx = px + cl.x, gy = py + cl.y;
+    if (gx < 0 || gx >= COLS || gy >= ROWS) return true;
+    if (gy >= 0 && grid[gy][gx]) return true;
+  }
+  return false;
+}
+/** 落地距离（幽灵块 / 硬降共用） */
+function dropDistance(grid, px, py, shape){
+  let d = 0;
+  while (!collides(grid, px, py + d + 1, shape)) d++;
+  return d;
+}
+function emptyGrid(){
+  return Array.from({ length: ROWS }, () => new Array(COLS).fill(null));
+}
+/** 撕纸进度用：已撕开的行数 */
+function tornCount(torn){
+  let n = 0;
+  for (let r = 0; r < ROWS; r++) if (torn[r]) n++;
+  return n;
+}
+function dropIntervalFor(level){
+  return Math.max(90, 900 - (level - 1) * 75);
+}
+
+/** 7-bag 洗牌：每 7 个方块内七种各出现一次，避免长时间不出 I */
+function refillBag(bag){
+  const out = TYPES.slice();
+  for (let i = out.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = out[i]; out[i] = out[j]; out[j] = t;
+  }
+  bag.length = 0;
+  for (const t of out) bag.push(t);
+  return bag;
+}
+function nextType(bag){
+  if (!bag.length) refillBag(bag);
+  return bag.pop();
+}
+
+// 锯齿撕边：按边界序号缓存的确定性随机偏移，避免每帧抖动
+const edgeCache = new Map();
+function edgeOffsets(boundary){
+  let arr = edgeCache.get(boundary);
+  if (!arr){
+    const rnd = mulberry32(boundary * 2654435761 + 97);
+    arr = [];
+    for (let i = 0; i <= EDGE_SEGMENTS; i++) arr.push((rnd() - .5) * 6); // ±3px
+    edgeCache.set(boundary, arr);
+  }
+  return arr;
+}
+/** 沿一条撕边生成折线路径（相对 x 轴，y 为基准线 + 偏移） */
+function traceJagged(ctx, y, offs, fromRight){
+  const n = offs.length - 1;
+  if (fromRight){
+    ctx.moveTo(BD_W, y);
+    for (let i = n; i >= 0; i--) ctx.lineTo((i / n) * BD_W, y + offs[i]);
+  } else {
+    ctx.moveTo(0, y);
+    for (let i = 0; i <= n; i++) ctx.lineTo((i / n) * BD_W, y + offs[i]);
+  }
+}
+
+// ============================================================
+// 三、浏览器运行时
+// ============================================================
+const isBrowser = typeof window !== 'undefined' && typeof document !== 'undefined';
+
+// 下面这一整段只在浏览器里执行；tests/run.js 会把 boot() 整体裁掉，
+// 只拿上面的纯逻辑做断言（消行、撕纸、SRS、计分）。
+function boot(){
+
+const $ = id => document.getElementById(id);
+function toast(msg){
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.remove('show'), 2200);
+}
+function buzz(ms){ try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} }
+
+// ---------- 游戏状态 ----------
+const state = {
+  grid: emptyGrid(),
+  torn: new Array(ROWS).fill(false),
+  piece: null, hold: null, holdUsed: false,
+  queue: [], bag: [],
+  score: 0, lines: 0, level: 1, combo: -1,
+  over: false, paused: false, started: false,
+  dropCounter: 0, dropInterval: dropIntervalFor(1), lastTime: 0,
+  revealVersion: -1,          // 上层图缓存失效用（每次撕开 +1）
+  revealed: 0,
+  tearing: [],                // 撕开动画 {row, t, start, dur}
+  particles: []
+};
+let best = parseInt(localStorage.getItem('teartris:best') || '0', 10) || 0;
+let muted = localStorage.getItem('teartris:muted') === '1';
+let actx = null;
+
+// ---------- 画布 ----------
+const boardCv = $('board'), bctx = boardCv.getContext('2d');
+const holdCv = $('holdCv'), hctx = holdCv.getContext('2d');
+const nextCvs = [$('next1Cv'), $('next2Cv'), $('next3Cv')];
+const nextCtxs = nextCvs.map(c => c.getContext('2d'));
+let DPR = 1;
+
+function setupCanvas(cv){
+  const lw = cv.width, lh = cv.height;      // HTML 里的逻辑尺寸
+  cv.width = Math.round(lw * DPR);
+  cv.height = Math.round(lh * DPR);
+  const ctx = cv.getContext('2d');
+  if (ctx.setTransform) ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  else { ctx.scale(DPR, DPR); }             // 极老浏览器兜底
+  return ctx;
+}
+function refreshDPR(force){
+  const next = Math.min(window.devicePixelRatio || 1, 2);
+  if (!force && next === DPR) return false;
+  DPR = next;
+  setupCanvas(boardCv); setupCanvas(holdCv); nextCvs.forEach(setupCanvas);
+  stripCache.cv = null;          // 离屏缓存的分辨率跟着 DPR 走，必须重建
+  stripCache.ctx = null;
+  invalidateStripCache();
+  drawPreviews();
+  return true;
+}
+
+// ---------- 图片图层 ----------
+const images = { A: null, B: null, usingCustom: { A: false, B: false } };
+let coverA = null, coverB = null;
+const objectUrls = { A: null, B: null };
+
+/** cover 模式：算出把整张图等比裁切铺满棋盘时要取的源区域 */
+function coverRect(img, dw, dh){
+  const iw = img.width || dw, ih = img.height || dh;
+  const ir = iw / ih, dr = dw / dh;
+  if (ir > dr){ const sh = ih, sw = sh * dr; return { sx: (iw - sw) / 2, sy: 0, sw, sh }; }
+  const sw = iw, sh = sw / dr; return { sx: 0, sy: (ih - sh) / 2, sw, sh };
+}
+/** 示例图文件名：优先 WebP（体积约为 JPG 的 1/6），不支持时回落到 JPG */
+function sampleSources(slot){
+  const stem = 'assets/image' + slot;
+  return [stem + '.webp', stem + '.jpg'];
+}
+function releaseObjectUrl(slot){
+  if (objectUrls[slot]){ try { URL.revokeObjectURL(objectUrls[slot]); } catch (e) {} objectUrls[slot] = null; }
+}
+function loadImageInto(slot, src, opts){
+  opts = opts || {};
+  const img = new Image();
+  img.decoding = 'async';
+  img.onload = () => {
+    images[slot] = img;
+    if (slot === 'A') coverA = coverRect(img, BD_W, BD_H);
+    else coverB = coverRect(img, BD_W, BD_H);
+    images.usingCustom[slot] = !!opts.custom;
+    invalidateStripCache();
+    updateImgLabels();
+    if (opts.onDone) opts.onDone(true);
+  };
+  img.onerror = () => {
+    if (opts.custom){
+      toast('这张图片读不出来，已保留原来的图');
+      // 自定义图坏了就退回示例图，避免上层整块空白
+      loadSampleImage(slot);
+      if (opts.onDone) opts.onDone(false);
+      return;
+    }
+    // 示例图：逐个候选格式重试（老浏览器不认 WebP），全都不行才用程序生成的兜底
+    const rest = (opts.candidates || []).slice(1);
+    if (rest.length){
+      loadImageInto(slot, rest[0], Object.assign({}, opts, { candidates: rest }));
+      return;
+    }
+    if (opts.onDone) opts.onDone(false);
+    useProcedural(slot);
+  };
+  img.src = src;
+}
+/** 按候选顺序加载示例图 */
+function loadSampleImage(slot, onDone){
+  const candidates = sampleSources(slot);
+  loadImageInto(slot, candidates[0], { candidates, onDone });
+}
+/** 自定义图片：等比缩到 MAX_IMAGE_EDGE 内再存，省 IndexedDB 空间和加载时间 */
+function downscaleToBlob(file){
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const scale = Math.min(1, MAX_IMAGE_EDGE / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        const x = c.getContext('2d');
+        x.drawImage(img, 0, 0, w, h);
+        c.toBlob(b => { URL.revokeObjectURL(url); resolve(b || file); }, 'image/webp', 0.9);
+      } catch (e){ URL.revokeObjectURL(url); resolve(file); }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+// 程序生成的兜底背景（默认图加载失败时）
+function useProcedural(slot){
+  const c = document.createElement('canvas');
+  c.width = 300; c.height = 600;
+  const x = c.getContext('2d');
+  if (slot === 'A'){
+    const g = x.createLinearGradient(0,0,0,600);
+    g.addColorStop(0,'#9cc7ff'); g.addColorStop(.55,'#dff3ff'); g.addColorStop(1,'#a8d8a0');
+    x.fillStyle = g; x.fillRect(0,0,300,600);
+    x.fillStyle = '#fff8'; x.beginPath(); x.arc(230,90,34,0,7); x.fill();
+    x.fillStyle = '#fff';
+    for (let i=0;i<5;i++){
+      x.beginPath();
+      x.arc(40+i*58, 120+(i%3)*26, 20,0,7);
+      x.arc(60+i*58, 116+(i%3)*26, 24,0,7);
+      x.arc(80+i*58, 120+(i%3)*26, 18,0,7);
+      x.fill();
+    }
+    x.fillStyle = '#7cc46f'; x.beginPath(); x.moveTo(0,430); x.lineTo(150,340); x.lineTo(300,430); x.lineTo(300,600); x.lineTo(0,600); x.fill();
+    x.fillStyle = '#d98fd9'; x.beginPath(); x.ellipse(120,520,14,10,0,0,7); x.fill();
+    x.fillStyle = '#ffd166'; x.beginPath(); x.ellipse(190,500,12,9,0,0,7); x.fill();
+  } else {
+    const g = x.createLinearGradient(0,0,0,600);
+    g.addColorStop(0,'#0b1030'); g.addColorStop(.6,'#14224f'); g.addColorStop(1,'#0a0e1f');
+    x.fillStyle = g; x.fillRect(0,0,300,600);
+    const rnd = mulberry32(20260101);
+    for (let i=0;i<60;i++){
+      const r = rnd()*1.6+.4;
+      x.fillStyle = `rgba(255,255,255,${rnd()*.8+.2})`;
+      x.beginPath(); x.arc(rnd()*300, rnd()*420, r, 0, 7); x.fill();
+    }
+    const ag = x.createLinearGradient(0,180,0,320);
+    ag.addColorStop(0,'rgba(88,216,192,.35)'); ag.addColorStop(1,'rgba(124,156,255,.15)');
+    x.fillStyle = ag;
+    x.beginPath();
+    x.moveTo(0,220); x.quadraticCurveTo(75,160,150,210); x.quadraticCurveTo(225,260,300,200);
+    x.lineTo(300,260); x.quadraticCurveTo(150,310,0,250); x.fill();
+    x.fillStyle = '#1b2440';
+    x.beginPath(); x.moveTo(0,470); x.lineTo(90,420); x.lineTo(160,455); x.lineTo(240,405); x.lineTo(300,440); x.lineTo(300,600); x.lineTo(0,600); x.fill();
+  }
+  images[slot] = c;
+  if (slot === 'A') coverA = coverRect(c, BD_W, BD_H);
+  else coverB = coverRect(c, BD_W, BD_H);
+  images.usingCustom[slot] = false;
+  invalidateStripCache();
+  updateImgLabels();
+}
+
+// ---------- IndexedDB 持久化 ----------
+const DB_NAME = 'teartris-db', DB_STORE = 'images';
+let _db = null, _dbFailed = false;
+function idbOpen(){
+  return new Promise((resolve) => {
+    if (_db) return resolve(_db);
+    if (_dbFailed) return resolve(null);
+    let req;
+    try { req = indexedDB.open(DB_NAME, 1); } catch (e){ _dbFailed = true; return resolve(null); }
+    req.onupgradeneeded = () => { if (!req.result.objectStoreNames.contains(DB_STORE)) req.result.createObjectStore(DB_STORE); };
+    req.onsuccess = () => { _db = req.result; resolve(_db); };
+    req.onerror = () => { _dbFailed = true; resolve(null); };
+  });
+}
+async function idbPut(key, blob){
+  const db = await idbOpen(); if (!db) return false;
+  try {
+    await new Promise((res, rej) => {
+      const t = db.transaction(DB_STORE, 'readwrite');
+      t.objectStore(DB_STORE).put(blob, key);
+      t.oncomplete = res; t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
+    });
+    return true;
+  } catch (e){ return false; }
+}
+async function idbGet(key){
+  const db = await idbOpen(); if (!db) return null;
+  try {
+    return await new Promise((res, rej) => {
+      const t = db.transaction(DB_STORE, 'readonly');
+      const rq = t.objectStore(DB_STORE).get(key);
+      rq.onsuccess = () => res(rq.result || null);
+      rq.onerror = () => rej(rq.error);
+    });
+  } catch (e){ return null; }
+}
+async function idbDel(key){
+  const db = await idbOpen(); if (!db) return;
+  try {
+    await new Promise((res, rej) => {
+      const t = db.transaction(DB_STORE, 'readwrite');
+      t.objectStore(DB_STORE).delete(key);
+      t.oncomplete = res; t.onerror = () => rej(t.error);
+    });
+  } catch (e){}
+}
+async function loadDefaults(){
+  const [blobA, blobB] = await Promise.all([idbGet('A'), idbGet('B')]);
+  // 两路并行：IndexedDB 里没有自定义图时各自去加载示例图（WebP 优先）
+  for (const [slot, blob] of [['A', blobA], ['B', blobB]]){
+    if (blob){
+      releaseObjectUrl(slot);
+      objectUrls[slot] = URL.createObjectURL(blob);
+      loadImageInto(slot, objectUrls[slot], { custom: true });
+    } else {
+      loadSampleImage(slot);
+    }
+  }
+}
+function updateImgLabels(){
+  $('pickA').textContent = '选择 上层图 A' + (images.usingCustom.A ? '（自定义）' : '');
+  $('pickB').textContent = '选择 下层图 B' + (images.usingCustom.B ? '（自定义）' : '');
+}
+
+// ---------- 上层图离屏缓存 ----------
+// 未撕开的上层图每帧重画是纯粹的浪费：20 次 drawImage + 最多 20 次裁剪。
+// 撕口只在消行时变化，所以把它渲染到一张离屏画布，只在撕口/图片/DPR 变化时重建。
+const stripCache = { cv: null, ctx: null, version: -1, imgA: null, coverKey: '' };
+
+function invalidateStripCache(){ stripCache.version = -1; }
+
+function coverKeyOf(cover){
+  return cover ? [cover.sx, cover.sy, cover.sw, cover.sh].map(v => (Math.round(v * 100) / 100)).join(',') : '';
+}
+function rebuildStripCache(){
+  const dpr = DPR;
+  if (!stripCache.cv){
+    stripCache.cv = document.createElement('canvas');
+    stripCache.cv.width = Math.round(BD_W * dpr);
+    stripCache.cv.height = Math.round(BD_H * dpr);
+    stripCache.ctx = stripCache.cv.getContext('2d');
+  }
+  const c = stripCache.ctx;
+  if (c.setTransform) c.setTransform(1, 0, 0, 1, 0, 0);
+  c.clearRect(0, 0, stripCache.cv.width, stripCache.cv.height);
+  if (c.setTransform) c.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const cover = coverA;
+  if (images.A && cover){
+    const sh = cover.sh / ROWS;                       // 每一行的源高度
+    for (let row = 0; row < ROWS; row++){
+      if (state.torn[row]) continue;
+      const y0 = row * CELL, y1 = y0 + CELL;
+      c.save();
+      if (state.torn[row + 1]){
+        // 下方那一行已经撕开：用锯齿路径裁掉本行底部，形成撕边
+        const offs = edgeOffsets(row + 1);
+        c.beginPath();
+        c.moveTo(0, y0);
+        c.lineTo(BD_W, y0);
+        traceJagged(c, y1, offs, true);
+        c.closePath();
+        c.clip();
+      }
+      c.drawImage(images.A, cover.sx, cover.sy + (row / ROWS) * cover.sh, cover.sw, sh, 0, y0, BD_W, CELL);
+      c.restore();
+    }
+  }
+  stripCache.version = state.revealVersion;
+  stripCache.imgA = images.A;
+  stripCache.coverKey = coverKeyOf(coverA);
+}
+
+/** 把缓存的上层图贴到主板（DPR 变化时按逻辑尺寸缩放回去） */
+function blitStrips(){
+  if (!stripCache.cv) return;
+  bctx.drawImage(stripCache.cv, 0, 0, BD_W, BD_H);
+}
+
+// ---------- 渲染 ----------
+function roundRect(ctx, x, y, w, h, r){
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function drawBackground(){
+  // 下层图 B 全量铺底
+  if (images.B && coverB){
+    bctx.drawImage(images.B, coverB.sx, coverB.sy, coverB.sw, coverB.sh, 0, 0, BD_W, BD_H);
+  } else if (images.A && coverA){
+    bctx.drawImage(images.A, coverA.sx, coverA.sy, coverA.sw, coverA.sh, 0, 0, BD_W, BD_H);
+  }
+  // 上层图 A：只画未撕开的行带（缓存重建时按需）
+  if (stripCache.version !== state.revealVersion ||
+      stripCache.imgA !== images.A ||
+      stripCache.coverKey !== coverKeyOf(coverA)){
+    rebuildStripCache();
+  }
+  blitStrips();
+
+  // 撕开动画：A 带残影快速上移淡出 + 短亮光
+  for (const t of state.tearing){
+    const p = Math.min(1, t.t);
+    const r = t.row, y0 = r * CELL;
+    const cover = coverA;
+    if (p < .28 && images.A && cover){
+      const sh = cover.sh / ROWS;
+      bctx.save();
+      bctx.globalAlpha = Math.max(0, 1 - p * 3.5);
+      bctx.translate(BD_W / 2, y0 + CELL / 2);
+      bctx.rotate((p - .4) * .22);
+      bctx.translate(-BD_W / 2, -(y0 + CELL / 2));
+      bctx.drawImage(images.A, cover.sx, cover.sy + (r / ROWS) * cover.sh, cover.sw, sh,
+        0, y0 - p * CELL * 1.2, BD_W, CELL);
+      bctx.restore();
+    }
+    if (p < .4){
+      bctx.save();
+      bctx.globalAlpha = Math.max(0, (.5 - p) * 2) * .5;
+      const g = bctx.createLinearGradient(0, y0, 0, y0 + CELL);
+      g.addColorStop(0, '#ffffff');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      bctx.fillStyle = g;
+      bctx.fillRect(0, y0, BD_W, CELL);
+      bctx.restore();
+    }
+  }
+
+  // 已撕开行带：叠深蓝调，让撕口和上层图形成强反差
+  if (state.revealed){
+    for (let r = 0; r < ROWS; r++){
+      if (!state.torn[r]) continue;
+      const y = r * CELL;
+      bctx.save();
+      bctx.globalAlpha = .24;
+      bctx.fillStyle = '#0a1646';
+      bctx.fillRect(0, y, BD_W, CELL);
+      bctx.restore();
+      // 上缘撕边：暗影 + 高光双描边，形成纸被揭起的厚度
+      const offs = edgeOffsets(r);
+      bctx.save();
+      bctx.beginPath();
+      traceJagged(bctx, y, offs, false);
+      bctx.strokeStyle = 'rgba(0,0,0,.35)'; bctx.lineWidth = 2.5; bctx.stroke();
+      bctx.strokeStyle = 'rgba(255,255,255,.4)'; bctx.lineWidth = 1.2; bctx.stroke();
+      bctx.restore();
+    }
+  }
+}
+
+/** 撕开行的残边，画在方块之上：堆叠盖住时也能看出哪几行撕过 */
+function drawTornEdges(){
+  if (!state.revealed) return;
+  for (let r = 0; r < ROWS; r++){
+    if (!state.torn[r]) continue;
+    const y = r * CELL;
+    const offs = edgeOffsets(r);
+    bctx.save();
+    bctx.beginPath();
+    bctx.moveTo(0, y + CELL);
+    traceJagged(bctx, y + CELL, offs, false);
+    bctx.strokeStyle = 'rgba(0,0,0,.5)'; bctx.lineWidth = 3.2; bctx.stroke();
+    bctx.strokeStyle = 'rgba(255,255,255,.6)'; bctx.lineWidth = 1.6; bctx.stroke();
+    bctx.beginPath();
+    traceJagged(bctx, y, offs, false);
+    bctx.strokeStyle = 'rgba(255,255,255,.38)'; bctx.lineWidth = 1.3; bctx.stroke();
+    bctx.restore();
+  }
+}
+
+function drawCell(x, y, size, color, alpha){
+  const pad = size * .055;
+  const r = Math.max(2, size * .14);
+  bctx.save();
+  bctx.globalAlpha = clamp(alpha == null ? .5 : alpha, 0, 1);
+  const g = bctx.createLinearGradient(x, y, x, y + size);
+  g.addColorStop(0, shade(color, 18));
+  g.addColorStop(1, shade(color, -10));
+  bctx.fillStyle = g;
+  roundRect(bctx, x + pad, y + pad, size - pad*2, size - pad*2, r);
+  bctx.fill();
+  bctx.fillStyle = 'rgba(255,255,255,.38)';
+  roundRect(bctx, x + pad + size*.09, y + pad + size*.06, size - pad*2 - size*.18, Math.max(1.5, size*.08), 2);
+  bctx.fill();
+  bctx.fillStyle = 'rgba(0,0,0,.20)';
+  roundRect(bctx, x + pad + size*.08, y + size - pad - Math.max(2, size*.09), size - pad*2 - size*.16, Math.max(1.5, size*.08), 2);
+  bctx.fill();
+  bctx.strokeStyle = 'rgba(255,255,255,.22)';
+  bctx.lineWidth = 1;
+  roundRect(bctx, x + pad + .5, y + pad + .5, size - pad*2 - 1, size - pad*2 - 1, r);
+  bctx.stroke();
+  bctx.restore();
+}
+
+function drawGridAndFrame(){
+  bctx.save();
+  bctx.strokeStyle = 'rgba(255,255,255,.045)';
+  bctx.lineWidth = 1;
+  bctx.beginPath();
+  for (let c = 1; c < COLS; c++){ bctx.moveTo(c*CELL+.5, 0); bctx.lineTo(c*CELL+.5, BD_H); }
+  for (let r = 1; r < ROWS; r++){ bctx.moveTo(0, r*CELL+.5); bctx.lineTo(BD_W, r*CELL+.5); }
+  bctx.stroke();
+  bctx.strokeStyle = 'rgba(255,255,255,.10)';
+  bctx.lineWidth = 1.5;
+  bctx.strokeRect(.75, .75, BD_W-1.5, BD_H-1.5);
+  bctx.restore();
+}
+
+function drawGhost(){
+  const p = state.piece;
+  if (!p) return;
+  const gy = p.y + dropDistance(state.grid, p.x, p.y, p.shape);
+  if (gy === p.y) return;
+  bctx.save();
+  bctx.strokeStyle = PIECES[p.type].color;
+  bctx.globalAlpha = .42;
+  bctx.lineWidth = 1.5;
+  bctx.beginPath();
+  for (const c of shapeCells(p.shape)){
+    const y = gy + c.y;
+    if (y < 0) continue;
+    roundRect(bctx, (p.x + c.x) * CELL + 3, y * CELL + 3, CELL - 6, CELL - 6, Math.max(2, CELL*.12));
+  }
+  bctx.stroke();
+  bctx.restore();
+}
+
+function drawPiece(){
+  const p = state.piece;
+  if (!p) return;
+  const color = PIECES[p.type].color;
+  for (const c of shapeCells(p.shape)){
+    const gy = p.y + c.y;
+    if (gy < 0) continue;
+    drawCell((p.x + c.x) * CELL, gy * CELL, CELL, color, .8);
+  }
+}
+
+function drawStack(){
+  const { grid } = state;
+  for (let r = 0; r < ROWS; r++){
+    const row = grid[r];
+    for (let c = 0; c < COLS; c++){
+      if (row[c]) drawCell(c * CELL, r * CELL, CELL, PIECES[row[c]].color, .42);
+    }
+  }
+}
+
+function drawParticles(dt){
+  const list = state.particles;
+  if (!list.length) return;
+  bctx.save();
+  for (const p of list){
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    p.vy += 160 * dt; p.rot += p.vr * dt;
+    p.life -= dt / p.dur;
+    if (p.life <= 0) continue;
+    bctx.globalAlpha = clamp(p.life, 0, 1);
+    bctx.translate(p.x, p.y);
+    bctx.rotate(p.rot);
+    bctx.fillStyle = p.color;
+    bctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+    bctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  bctx.restore();
+  state.particles = list.filter(p => p.life > 0);
+}
+
+function updateTearing(now){
+  const list = state.tearing;
+  if (!list.length) return;
+  for (const t of list){
+    if (t.start == null) t.start = now;      // progress 只在浏览器里跑得真实
+    t.t = (now - t.start) / t.dur;
+  }
+  state.tearing = list.filter(t => t.t < 1);
+}
+
+// ---------- 迷你预览 ----------
+function drawMini(ctx, type, w, h){
+  ctx.clearRect(0, 0, w, h);
+  if (!type) return;
+  const def = PIECES[type];
+  const cells = shapeCells(def.shape);
+  const b = shapeBounds(cells);
+  const size = Math.min((w - MINI_PAD*2) / Math.max(b.w, 3), (h - MINI_PAD*2) / Math.max(b.h, 2), MINI);
+  const ox = (w - b.w*size) / 2, oy = (h - b.h*size) / 2;
+  ctx.save();
+  ctx.globalAlpha = .9;
+  for (const c of cells){
+    const x = ox + (c.x - b.minX)*size, y = oy + (c.y - b.minY)*size;
+    const g = ctx.createLinearGradient(x, y, x, y + size);
+    g.addColorStop(0, shade(def.color, 18));
+    g.addColorStop(1, shade(def.color, -10));
+    ctx.fillStyle = g;
+    roundRect(ctx, x + 1, y + 1, size - 2, size - 2, Math.max(2, size*.15));
+    ctx.fill();
+  }
+  ctx.restore();
+}
+function drawPreviews(){
+  drawMini(hctx, state.hold, 112, 112);
+  for (let i = 0; i < 3; i++) drawMini(nextCtxs[i], state.queue[i], 112, 112);
+}
+
+// ---------- HUD ----------
+const hud = {};
+['score','level','lines','combo','best','revealed'].forEach(k => hud[k] = $('stat' + k[0].toUpperCase() + k.slice(1)));
+hud.bar = $('revealBar');
+let hudAt = -1e9, lastBarPct = -1;
+function refreshHUD(force){
+  const now = performance.now();
+  if (!force && now - hudAt < 100) return;     // 10Hz 足够肉眼跟手，省掉每帧 6 次 DOM 比较
+  hudAt = now;
+  const set = (el, v) => { if (el.textContent !== v) el.textContent = v; };
+  set(hud.score, String(state.score));
+  set(hud.level, String(state.level));
+  set(hud.lines, String(state.lines));
+  set(hud.combo, state.combo > 0 ? '×' + (state.combo + 1) : '-');
+  set(hud.best, String(Math.max(best, state.score)));
+  set(hud.revealed, state.revealed + ' / ' + ROWS);
+  const pct = Math.round(state.revealed / ROWS * 100);
+  if (pct !== lastBarPct){ lastBarPct = pct; hud.bar.style.width = pct + '%'; }
+}
+
+// ---------- 音效 ----------
+function ensureAudio(){
+  if (!actx){
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (AC){ try { actx = new AC(); } catch (e){ actx = null; } }
+  }
+  if (actx && actx.state === 'suspended') actx.resume();
+}
+function tone(freq, dur, type, gain, when){
+  if (!actx || muted) return;
+  const t0 = actx.currentTime + (when || 0);
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.type = type || 'square'; o.frequency.value = freq;
+  g.gain.setValueAtTime(gain || .12, t0);
+  g.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
+  o.connect(g); g.connect(actx.destination);
+  o.start(t0); o.stop(t0 + dur + .02);
+}
+function noiseBurst(dur, gain, when){
+  if (!actx || muted) return;
+  const t0 = actx.currentTime + (when || 0);
+  const len = Math.max(1, Math.floor(actx.sampleRate * dur));
+  const buf = actx.createBuffer(1, len, actx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) data[i] = (Math.random()*2-1) * (1 - i/len);
+  const src = actx.createBufferSource(); src.buffer = buf;
+  const g = actx.createGain(); g.gain.setValueAtTime(gain || .2, t0);
+  g.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
+  const f = actx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1400; f.Q.value = 1;
+  src.connect(f); f.connect(g); g.connect(actx.destination);
+  src.start(t0);
+}
+const SFX = {
+  move:   () => tone(210, .05, 'square', .06),
+  rotate: () => tone(330, .06, 'triangle', .08),
+  soft:   () => tone(150, .03, 'square', .04),
+  lock:   () => tone(110, .07, 'square', .1),
+  hold:   () => tone(260, .06, 'triangle', .08),
+  clear:  () => { tone(523,.09,'triangle',.1); tone(659,.09,'triangle',.1,.07); tone(784,.12,'triangle',.1,.14); },
+  tetris: () => { tone(523,.09,'triangle',.1); tone(659,.09,'triangle',.1,.07); tone(784,.09,'triangle',.1,.14); tone(1047,.16,'triangle',.12,.21); },
+  tear:   () => { noiseBurst(.34, .2); noiseBurst(.13, .13, .06); },
+  start:  () => { tone(392,.08,'triangle',.09); tone(523,.1,'triangle',.09,.08); },
+  over:   () => { tone(330,.2,'sawtooth',.08); tone(262,.3,'sawtooth',.08,.18); tone(196,.5,'sawtooth',.08,.38); }
+};
+function playSound(name){ const f = SFX[name]; if (f) f(); }
+function updateSoundBtn(){ $('btnSound').textContent = '音效：' + (muted ? '关' : '开'); }
+
+// ---------- 游戏流程 ----------
+function spawn(){
+  if (state.over) return;                   // 游戏已经结束就别再冒新块
+  const type = state.queue.length ? state.queue.shift() : nextType(state.bag);
+  state.queue.push(nextType(state.bag));
+  const def = PIECES[type];
+  const pose = centeredPose(type, def.shape);
+  state.piece = { type, rot: 0, shape: def.shape, x: pose.x, y: pose.y };
+  state.holdUsed = false;
+  state.dropCounter = 0;
+  if (collides(state.grid, pose.x, pose.y, def.shape)) gameOver();
+}
+/** 纯位移：重力与玩家操作共用，因此不在这里计分 */
+function move(dx, dy){
+  const p = state.piece;
+  if (!p || state.over || state.paused) return false;
+  if (collides(state.grid, p.x + dx, p.y + dy, p.shape)) return false;
+  p.x += dx; p.y += dy;
+  return true;
+}
+/** 玩家主动软降：+1 分/格（重力下落走 move()，不加分） */
+function softDrop(){
+  if (move(0, 1)){ state.score += 1; return true; }
+  return false;
+}
+function rotate(dir){
+  const p = state.piece;
+  if (!p || state.over || state.paused) return false;
+  const from = p.rot, to = (from + dir + 4) % 4;
+  const table = p.type === 'I' ? KICKS_I : KICKS_JLSTZ;
+  const kicks = table[from + '>' + to] || [[0, 0]];
+  const shape = rotateShape(p.shape, dir);
+  for (const k of kicks){
+    if (!collides(state.grid, p.x + k[0], p.y - k[1], shape)){
+      p.shape = shape; p.rot = to; p.x += k[0]; p.y -= k[1];
+      return true;
+    }
+  }
+  return false;
+}
+function hardDrop(){
+  const p = state.piece;
+  if (!p || state.over || state.paused) return;
+  const d = dropDistance(state.grid, p.x, p.y, p.shape);
+  p.y += d;
+  state.score += d * 2;
+  lock();
+}
+function holdPiece(){
+  const p = state.piece;
+  if (!p || state.over || state.paused || state.holdUsed) return;
+  if (state.hold == null){
+    state.hold = p.type;
+    state.piece = null;
+    spawn();
+    if (state.over) return;
+  } else {
+    const t = state.hold;
+    state.hold = p.type;
+    const def = PIECES[t];
+    const pose = centeredPose(t, def.shape);
+    p.type = t; p.shape = def.shape; p.rot = 0; p.x = pose.x; p.y = pose.y;
+    if (collides(state.grid, p.x, p.y, p.shape)){ gameOver(); return; }
+  }
+  state.holdUsed = true;
+  playSound('hold');
+}
+
+function spawnPaper(row){
+  const rnd = mulberry32((row + 1) * 7919 + state.lines);
+  const y0 = row * CELL;
+  for (let i = 0; i < 26; i++){
+    state.particles.push({
+      x: rnd() * BD_W,
+      y: y0 + rnd() * CELL,
+      vx: (rnd() - .5) * 72,
+      vy: -(55 + rnd() * 135),
+      w: 3 + rnd() * 4,
+      h: 2 + rnd() * 3,
+      rot: rnd() * Math.PI * 2,
+      vr: (rnd() - .5) * 9,
+      life: 1, dur: .5 + rnd() * .4,
+      color: rnd() > .45 ? '#f4efe4' : '#ffffff'
+    });
+  }
+}
+
+function lock(){
+  const p = state.piece;
+  if (!p) return;
+  let topOut = false;
+  for (const c of shapeCells(p.shape)){
+    const gy = p.y + c.y;
+    if (gy < 0){ topOut = true; continue; }
+    state.grid[gy][p.x + c.x] = p.type;
+  }
+  state.piece = null;
+
+  const cleared = fullRows(state.grid);
+  if (cleared.length){
+    // 纸固定、内容下落：grid 与 torn 同步压缩，撕口留在下层图原位
+    compact(state.grid, state.torn, cleared);
+    state.revealed = tornCount(state.torn);
+    state.revealVersion++;
+    for (const r of cleared){
+      state.tearing.push({ row: r, t: 0, start: null, dur: 650 + Math.random() * 150 });
+      spawnPaper(r);
+    }
+    state.lines += cleared.length;
+    state.combo++;
+    const comboBonus = state.combo > 0 ? state.combo * 50 * state.level : 0;
+    const perfect = state.grid.every(row => row.every(v => !v)) ? 400 * state.level : 0;
+    state.score += LINE_SCORES[cleared.length] * state.level + comboBonus + perfect;
+    state.level = Math.floor(state.lines / 10) + 1;
+    state.dropInterval = dropIntervalFor(state.level);
+    playSound(cleared.length === 4 ? 'tetris' : 'clear');
+    playSound('tear');
+    buzz(cleared.length === 4 ? 40 : 18);
+    if (perfect) toast('整张纸都撕开了！+' + perfect);
+  } else {
+    state.combo = -1;
+    playSound('lock');
+  }
+  if (topOut){ gameOver(); return; }
+  refreshHUD(true);
+  spawn();
+}
+
+function gameOver(){
+  state.over = true;
+  state.started = false;
+  playSound('over');
+  if (state.score > best){
+    best = state.score;
+    try { localStorage.setItem('teartris:best', String(best)); } catch (e) {}
+  }
+  const progress = tornCount(state.torn);
+  $('ovTitle').textContent = '游戏结束';
+  $('ovScore').textContent = String(state.score);
+  $('ovBest').textContent = String(best);
+  $('ovBtn').textContent = '重新开始';
+  $('ovTip').textContent = progress >= ROWS
+    ? '整张上层图都撕开了'
+    : '共撕开 ' + progress + ' / ' + ROWS + ' 层';
+  $('overlay').classList.add('show');
+  refreshHUD(true);
+}
+
+function newGame(){
+  state.grid = emptyGrid();
+  state.torn = new Array(ROWS).fill(false);
+  state.score = 0; state.lines = 0; state.level = 1; state.combo = -1;
+  state.hold = null; state.holdUsed = false;
+  state.over = false; state.paused = false; state.started = true;
+  state.revealed = 0; state.revealVersion++;
+  state.tearing = []; state.particles = [];
+  state.bag = []; state.queue = [];
+  while (state.queue.length < 3) state.queue.push(nextType(state.bag));
+  state.dropInterval = dropIntervalFor(1);
+  state.dropCounter = 0; state.lastTime = performance.now();
+  state.piece = null;
+  spawn();
+  $('overlay').classList.remove('show');
+  $('btnPause').textContent = '暂停';
+  refreshHUD(true);
+  drawPreviews();
+  playSound('start');
+}
+function togglePause(){
+  if (state.over || !state.piece) return;
+  state.paused = !state.paused;
+  $('btnPause').textContent = state.paused ? '继续' : '暂停';
+  $('overlay').classList.toggle('show', state.paused);
+  if (state.paused){
+    $('ovTitle').textContent = '已暂停';
+    $('ovScore').textContent = String(state.score);
+    $('ovBest').textContent = String(best);
+    $('ovTip').textContent = '按 P 或点下面的按钮回到游戏';
+    $('ovBtn').textContent = '继续游戏';
+  } else {
+    $('ovBtn').textContent = '重新开始';
+    state.lastTime = performance.now();     // 丢掉暂停期间累积的时间
+  }
+}
+
+// ---------- 主循环 ----------
+let rafId = 0;
+function frame(now){
+  rafId = requestAnimationFrame(frame);
+  const s = state;
+  if (!s.started && !s.over && !s.piece) return;
+  let dt = (now - s.lastTime) / 1000;
+  if (!isFinite(dt) || dt < 0) dt = 0.016;
+  if (dt > 0.05) dt = 0.05;                 // 切标签页/卡顿后不让方块瞬移
+  s.lastTime = now;
+
+  if (!s.paused && !s.over && s.piece){
+    s.dropCounter += dt * 1000;
+    if (s.dropCounter >= s.dropInterval){
+      s.dropCounter = 0;
+      if (!move(0, 1)) lock();               // 重力下落不加分
+    }
+  }
+  updateTearing(now);
+  const live = s.piece;
+  s.piece = null;                           // 暂停时不画活动块（视觉上明确「停了」）
+  bctx.clearRect(0, 0, BD_W, BD_H);
+  drawBackground();
+  drawGridAndFrame();
+  drawStack();
+  s.piece = live;
+  if (!s.paused && !s.over && live){
+    drawGhost();
+    drawPiece();
+  }
+  drawTornEdges();
+  drawParticles(dt);
+  drawPreviews();
+  refreshHUD(false);
+}
+
+// ---------- 输入 ----------
+const GAME_KEYS = ['ArrowLeft','ArrowRight','ArrowDown','ArrowUp','Space'];
+document.addEventListener('keydown', (e) => {
+  const tag = e.target && e.target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable)) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;      // 放行 Ctrl+R 之类的浏览器/宿主快捷键
+  ensureAudio();
+  const k = e.code;
+  // 只拦游戏真正用到的键；Tab / Enter 在非游玩状态放行，方便键盘用户点到按钮
+  const playing = !state.over && !state.paused;
+  if (GAME_KEYS.indexOf(k) >= 0 || (playing && (k === 'Tab' || k === 'Enter'))) e.preventDefault();
+  e.stopPropagation();                                  // 别让 DSH 宿主的快捷键抢走按键
+  if (state.over){ if (k === 'KeyR' || k === 'Space' || k === 'Enter') newGame(); return; }
+  switch (k){
+    case 'ArrowLeft':  if (move(-1, 0)) playSound('move'); break;
+    case 'ArrowRight': if (move(1, 0)) playSound('move'); break;
+    case 'ArrowDown':  if (softDrop()) playSound('soft'); break;
+    case 'ArrowUp':    if (rotate(1)) playSound('rotate'); break;
+    case 'KeyX':       if (rotate(1)) playSound('rotate'); break;
+    case 'KeyZ':       if (rotate(-1)) playSound('rotate'); break;
+    case 'Space':      hardDrop(); break;
+    case 'KeyC':       holdPiece(); break;
+    case 'KeyP': case 'Escape': togglePause(); break;
+    case 'KeyR':       newGame(); break;
+    case 'KeyM':       muted = !muted; try { localStorage.setItem('teartris:muted', muted ? '1' : '0'); } catch (err) {} updateSoundBtn(); break;
+  }
+}, { passive: false });
+
+// 触屏 / 鼠标：点按一次走一步，按住 220ms 后连发
+const HOLD_DELAY = 220, HOLD_REPEAT = 55;
+const TOUCH_ACTS = {
+  left:  () => { if (move(-1, 0)) playSound('move'); },
+  right: () => { if (move(1, 0)) playSound('move'); },
+  rotl:  () => { if (rotate(-1)) playSound('rotate'); },
+  rotr:  () => { if (rotate(1)) playSound('rotate'); },
+  drop:  () => hardDrop()
+};
+document.querySelectorAll('.touchbar button').forEach(btn => {
+  const act = TOUCH_ACTS[btn.dataset.act] || function(){};
+  const repeatable = btn.dataset.act !== 'drop';       // 硬降不连发
+  let timer = 0, repeater = 0;
+  const stop = () => { clearTimeout(timer); clearInterval(repeater); timer = repeater = 0; };
+  btn.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); ensureAudio();
+    if (btn.setPointerCapture) btn.setPointerCapture(e.pointerId);
+    act();
+    if (repeatable) timer = setTimeout(() => { repeater = setInterval(act, HOLD_REPEAT); }, HOLD_DELAY);
+  });
+  ['pointerup','pointercancel','pointerleave','lostpointercapture'].forEach(ev => btn.addEventListener(ev, stop));
+});
+
+// 面板按钮
+$('btnNew').addEventListener('click', () => { ensureAudio(); newGame(); });
+$('btnPause').addEventListener('click', () => { ensureAudio(); togglePause(); });
+$('btnSound').addEventListener('click', () => {
+  ensureAudio(); muted = !muted;
+  try { localStorage.setItem('teartris:muted', muted ? '1' : '0'); } catch (e) {}
+  updateSoundBtn();
+});
+$('ovBtn').addEventListener('click', () => {
+  ensureAudio();
+  if (state.paused && !state.over) togglePause();
+  else newGame();
+});
+$('pickA').addEventListener('click', () => $('fileA').click());
+$('pickB').addEventListener('click', () => $('fileB').click());
+$('fileA').addEventListener('change', e => { const f = e.target.files[0]; if (f) handleImageFile(f, 'A'); e.target.value = ''; });
+$('fileB').addEventListener('change', e => { const f = e.target.files[0]; if (f) handleImageFile(f, 'B'); e.target.value = ''; });
+$('resetImgs').addEventListener('click', async () => {
+  await Promise.all([idbDel('A'), idbDel('B')]);
+  releaseObjectUrl('A'); releaseObjectUrl('B');
+  loadSampleImage('A');
+  loadSampleImage('B');
+  toast('已重置为示例图');
+});
+
+async function handleImageFile(file, slot){
+  if (!file || !/^image\//.test(file.type)){ toast('请选择图片文件'); return; }
+  ensureAudio();
+  const blob = await downscaleToBlob(file);
+  releaseObjectUrl(slot);
+  objectUrls[slot] = URL.createObjectURL(blob);
+  loadImageInto(slot, objectUrls[slot], {
+    custom: true,
+    onDone: (ok) => {
+      if (!ok) return;
+      if (blob !== file){
+        const kb = Math.round(blob.size / 1024);
+        toast('已载入' + (slot === 'A' ? '上层' : '下层') + '图：' + file.name + '（已压到 ' + kb + 'KB）');
+      } else {
+        toast('已载入' + (slot === 'A' ? '上层' : '下层') + '图：' + file.name);
+      }
+    }
+  });
+}
+
+// 拖拽放入棋盘
+const stageEl = $('stage');
+let dragDepth = 0;
+stageEl.addEventListener('dragenter', e => { e.preventDefault(); dragDepth++; stageEl.classList.add('dragging'); });
+stageEl.addEventListener('dragover', e => { e.preventDefault(); });
+stageEl.addEventListener('dragleave', e => {
+  e.preventDefault();
+  if (--dragDepth <= 0){ dragDepth = 0; stageEl.classList.remove('dragging'); }
+});
+stageEl.addEventListener('drop', (e) => {
+  e.preventDefault(); dragDepth = 0; stageEl.classList.remove('dragging');
+  const files = Array.prototype.slice.call(e.dataTransfer.files || []).filter(f => /^image\//.test(f.type));
+  if (!files.length){ toast('请拖入图片文件'); return; }
+  if (files.length >= 2){ handleImageFile(files[0], 'A'); handleImageFile(files[1], 'B'); return; }
+  const rect = boardCv.getBoundingClientRect();
+  handleImageFile(files[0], e.clientX < rect.left + rect.width / 2 ? 'A' : 'B');
+});
+
+// 切走标签页自动暂停：回来时不会因为积攒的时间一口气掉到底
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && state.started && !state.paused && !state.over) togglePause();
+});
+window.addEventListener('resize', () => refreshDPR(false));
+if (window.matchMedia){
+  const mq = window.matchMedia('(resolution: ' + (window.devicePixelRatio || 1) + 'dppx)');
+  if (mq.addEventListener) mq.addEventListener('change', () => refreshDPR(false));
+  else if (mq.addListener) mq.addListener(() => refreshDPR(false));
+}
+
+// 被 DSH 面板包在 iframe 里时，宿主会把按键 postMessage 过来（见 lib/client.js）。
+// 复用同一条 keydown 通路，避免两套按键逻辑走偏。
+window.addEventListener('message', (e) => {
+  if (e.origin !== location.origin) return;              // 只接受同源消息
+  const data = e.data;
+  if (!data || data.type !== 'teartris:key' || typeof data.code !== 'string') return;
+  ensureAudio();
+  document.dispatchEvent(new KeyboardEvent('keydown', { code: data.code, bubbles: true, cancelable: true }));
+});
+
+// ---------- 演示模式（?demo：贪心 AI 主动消行，持续展示撕纸） ----------
+let demoBot = null;
+function botScore(grid, cleared){
+  const heights = new Array(COLS).fill(0);
+  const tops = new Array(COLS).fill(-1);
+  for (let c = 0; c < COLS; c++){
+    for (let r = 0; r < ROWS; r++){
+      if (grid[r][c]){ heights[c]++; if (tops[c] < 0) tops[c] = r; }
+    }
+  }
+  let maxH = 0, sumH = 0, bump = 0, holes = 0;
+  for (let c = 0; c < COLS; c++){
+    if (heights[c] > maxH) maxH = heights[c];
+    sumH += heights[c];
+    if (c > 0) bump += Math.abs(heights[c] - heights[c-1]);
+    if (tops[c] >= 0) for (let r = tops[c]; r < ROWS; r++) if (!grid[r][c]) holes++;
+  }
+  return -cleared * 1200 + maxH * 100 + holes * 70 + bump * 8 + sumH * 3;
+}
+function botPick(){
+  const p = state.piece;
+  if (!p) return null;
+  let bestMove = null, bestSc = Infinity;
+  for (let rot = 0; rot < 4; rot++){
+    let shape = p.shape;
+    for (let i = 0; i < rot; i++) shape = rotateShape(shape, 1);
+    const cells = shapeCells(shape);
+    const b = shapeBounds(cells);
+    for (let px = -b.minX; px <= COLS - 1 - b.maxX; px++){
+      let py = p.y;
+      while (!collides(state.grid, px, py + 1, shape)) py++;
+      if (py < 0) continue;
+      const g = state.grid.map(row => row.slice());
+      let bad = false;
+      for (const cl of cells){
+        const gy = py + cl.y;
+        if (gy < 0){ bad = true; break; }
+        g[gy][px + cl.x] = p.type;
+      }
+      if (bad) continue;
+      const full = fullRows(g);
+      const fullSet = new Set(full);
+      const kept = g.filter((_, r) => !fullSet.has(r));
+      const gg = Array.from({ length: full.length }, () => new Array(COLS).fill(null)).concat(kept);
+      const sc = botScore(gg, full.length);
+      if (sc < bestSc){ bestSc = sc; bestMove = { rot, px }; }
+    }
+  }
+  return bestMove || { rot: 0, px: Math.floor(COLS / 2) };
+}
+function startDemo(){
+  demoBot = setInterval(() => {
+    if (state.over){ newGame(); return; }
+    if (state.paused || !state.piece) return;
+    const pick = botPick();
+    if (!pick) return;
+    for (let i = state.piece.rot; i !== pick.rot; i = (i + 1) % 4){ if (!rotate(1)) break; }
+    let guard = 0;
+    while (state.piece.x < pick.px && guard++ < 14){ if (!move(1, 0)) break; }
+    guard = 0;
+    while (state.piece.x > pick.px && guard++ < 14){ if (!move(-1, 0)) break; }
+    hardDrop();
+  }, 480);
+}
+
+// ---------- 启动 ----------
+refreshDPR(true);
+updateSoundBtn();
+newGame();
+loadDefaults();
+const params = new URLSearchParams(location.search);
+if (params.has('demo')) setTimeout(startDemo, 1500);
+frame(performance.now());
+
+// 供调试 / 将来的扩展点（不参与游戏逻辑）
+window.TearTris = {
+  state, PIECES, CELL, ROWS, COLS,
+  newGame, togglePause, botPick, refreshHUD, drawPreviews, handleImageFile
+};
+
+// 把上面的实例方法暴露成全局，方便 tests/run.js 在模拟 DOM 下直接驱动
+// （vm 沙箱里函数声明会成为全局属性，但闭包内的方法不会）
+globalThis.__teartris = {
+  spawn, move, softDrop, rotate, hardDrop, holdPiece, lock, frame,
+  newGame, togglePause, gameOver, refreshHUD, drawPreviews, botPick,
+  loadDefaults, handleImageFile, updateSoundBtn,
+  getState: () => state, getBest: () => best, isMuted: () => muted
+};
+
+}
+
+if (isBrowser) boot();
+</script>
+</body>
+</html>

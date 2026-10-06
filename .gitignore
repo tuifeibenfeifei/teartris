@@ -1,0 +1,11 @@
+node_modules/
+*.log
+.DS_Store
+Thumbs.db
+_verify_*.png
+shot.png
+
+# tests/shot.mjs 与 tools/replay.py 的中间产物
+tests/last-frame.json
+shot-test.png
+__pycache__/

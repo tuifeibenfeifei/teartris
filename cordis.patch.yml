@@ -1,0 +1,4 @@
+# TearTris 撕纸俄罗斯方块：向 DSH Web profile 注入一个可展开的游戏面板层。
+- insert:
+    - id: teartris
+      name: teartris
